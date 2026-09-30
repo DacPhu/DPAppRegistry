@@ -1,0 +1,123 @@
+package storage
+
+import (
+	"context"
+	"fmt"
+	"mime/multipart"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/spf13/viper"
+)
+
+// DigitalOceanSpacesClient implements StorageClient interface for DigitalOcean Spaces
+type DigitalOceanSpacesClient struct {
+	*BaseS3Client
+}
+
+// NewDigitalOceanSpacesClient creates a new DigitalOcean Spaces client
+func NewDigitalOceanSpacesClient(env *viper.Viper) (*DigitalOceanSpacesClient, error) {
+	s3Config := S3Config{
+		AccessKey:       env.GetString("S3_ACCESS_KEY"),
+		SecretKey:       env.GetString("S3_SECRET_KEY"),
+		Region:          env.GetString("S3_REGION"),
+		PrivateRegion:   env.GetString("S3_REGION_PRIVATE"),
+		Endpoint:        env.GetString("S3_ENDPOINT"),
+		PrivateEndpoint: env.GetString("S3_ENDPOINT_PRIVATE"),
+	}
+
+	baseClient, err := NewBaseS3Client(env, "DigitalOcean Spaces", s3Config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DigitalOceanSpacesClient{
+		BaseS3Client: baseClient,
+	}, nil
+}
+
+func (d *DigitalOceanSpacesClient) UploadObject(ctx context.Context, bucketName, objectKey string, fileReader multipart.File, contentType string) error {
+	input := &s3.PutObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(objectKey),
+		Body:   fileReader,
+	}
+	if contentType != "" {
+		input.ContentType = aws.String(contentType)
+	}
+	_, err := d.clientFor(bucketName).PutObject(ctx, input)
+	if err != nil {
+		return &StorageError{Message: "failed to upload object to DigitalOcean Spaces", Err: err}
+	}
+	return nil
+}
+
+// UploadPublicObject uploads a file to DigitalOcean Spaces public bucket and returns the public URL
+func (d *DigitalOceanSpacesClient) UploadPublicObject(ctx context.Context, bucketName, objectKey string, fileReader multipart.File, contentType string) (string, error) {
+	input := &s3.PutObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(objectKey),
+		Body:   fileReader,
+		ACL:    types.ObjectCannedACLPublicRead, // Set ACL to make the object publicly readable
+	}
+	if contentType != "" {
+		input.ContentType = aws.String(contentType)
+	}
+	_, err := d.clientFor(bucketName).PutObject(ctx, input)
+	if err != nil {
+		return "", &StorageError{Message: "failed to upload public object to DigitalOcean Spaces", Err: err}
+	}
+
+	return d.PublicObjectURL(bucketName, objectKey), nil
+}
+
+func (d *DigitalOceanSpacesClient) UploadPublicObjectWithCacheControl(ctx context.Context, bucketName, objectKey string, fileReader multipart.File, contentType, cacheControl string) (string, error) {
+	input := &s3.PutObjectInput{
+		Bucket:       aws.String(bucketName),
+		Key:          aws.String(objectKey),
+		Body:         fileReader,
+		ACL:          types.ObjectCannedACLPublicRead,
+		CacheControl: aws.String(cacheControl),
+	}
+	if contentType != "" {
+		input.ContentType = aws.String(contentType)
+	}
+	_, err := d.clientFor(bucketName).PutObject(ctx, input)
+	if err != nil {
+		return "", &StorageError{Message: "failed to upload public object to DigitalOcean Spaces", Err: err}
+	}
+
+	return d.PublicObjectURL(bucketName, objectKey), nil
+}
+
+func (d *DigitalOceanSpacesClient) PublicObjectURL(bucketName, objectKey string) string {
+	return fmt.Sprintf("https://%s.%s/%s", bucketName, d.env.GetString("S3_ENDPOINT"), encodeObjectKeyForPublicURL(objectKey))
+}
+
+// DeleteObject deletes a file from DigitalOcean Spaces
+func (d *DigitalOceanSpacesClient) DeleteObject(ctx context.Context, bucketName, objectKey string) error {
+	_, err := d.clientFor(bucketName).DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(objectKey),
+	})
+	if err != nil {
+		return &StorageError{Message: "failed to delete object from DigitalOcean Spaces", Err: err}
+	}
+	return nil
+}
+
+// GeneratePresignedURL generates a presigned URL for DigitalOcean Spaces
+func (d *DigitalOceanSpacesClient) GeneratePresignedURL(ctx context.Context, bucketName, objectKey string, expiration time.Duration) (string, error) {
+	request, err := d.presignClientFor(bucketName).PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(objectKey),
+	}, func(opts *s3.PresignOptions) {
+		opts.Expires = expiration
+	})
+	if err != nil {
+		return "", &StorageError{Message: "failed to generate presigned URL for DigitalOcean Spaces", Err: err}
+	}
+	return request.URL, nil
+}

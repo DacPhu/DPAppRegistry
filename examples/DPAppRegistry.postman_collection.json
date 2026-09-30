@@ -1,0 +1,2748 @@
+{
+  "info": {
+    "_postman_id": "a383eada-d15b-44ad-87b1-34da238d0645",
+    "name": "DPAppRegistry",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "30225535"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/health",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Search app by name",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/search?app_name={{app_name}}",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "search"
+          ],
+          "query": [
+            {
+              "key": "app_name",
+              "value": "{{app_name}}"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get latest app version",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/apps/latest?app_name={{app_name}}&channel={{channel}}&platform={{platform}}&arch={{arch}}&owner={{username}}",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "apps",
+            "latest"
+          ],
+          "query": [
+            {
+              "key": "app_name",
+              "value": "{{app_name}}"
+            },
+            {
+              "key": "channel",
+              "value": "{{channel}}"
+            },
+            {
+              "key": "platform",
+              "value": "{{platform}}"
+            },
+            {
+              "key": "arch",
+              "value": "{{arch}}"
+            },
+            {
+              "key": "package",
+              "value": "deb",
+              "type": "text",
+              "disabled": true
+            },
+            {
+              "key": "owner",
+              "value": "{{username}}",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get all apps",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Channels",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/channel/list",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "channel",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Platforms",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/platform/list",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "platform",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Archs",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/arch/list",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "arch",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Apps",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/app/list",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "app",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Check latest version",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/checkVersion?app_name={{app_name}}&version={{version}}&channel={{channel}}&platform={{platform}}&arch={{arch}}&owner={{username}}",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "checkVersion"
+          ],
+          "query": [
+            {
+              "key": "app_name",
+              "value": "{{app_name}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            },
+            {
+              "key": "channel",
+              "value": "{{channel}}"
+            },
+            {
+              "key": "platform",
+              "value": "{{platform}}"
+            },
+            {
+              "key": "arch",
+              "value": "{{arch}}"
+            },
+            {
+              "key": "owner",
+              "value": "{{username}}",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Check latest version (squirrel windows)",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/update/{{username}}/{{app_name}}/{{channel}}/{{platform}}/{{arch}}/{{version}}/RELEASES",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "update",
+            "{{username}}",
+            "{{app_name}}",
+            "{{channel}}",
+            "{{platform}}",
+            "{{arch}}",
+            "{{version}}",
+            "RELEASES"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Check latest version (velopack dynamic)",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/velopack/admin/HelloVelopackCS/darwin/arm64/releases.nightly.json?localVersion=1.0.0&id=HelloVelopackCS&stagingId=6f9619ff-8b86-d011-b42d-00cf4fc964ff",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "velopack",
+            "admin",
+            "HelloVelopackCS",
+            "darwin",
+            "arm64",
+            "releases.nightly.json"
+          ],
+          "query": [
+            {
+              "key": "localVersion",
+              "value": "1.0.0"
+            },
+            {
+              "key": "id",
+              "value": "HelloVelopackCS"
+            },
+            {
+              "key": "stagingId",
+              "value": "6f9619ff-8b86-d011-b42d-00cf4fc964ff"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "let response = pm.response.json();",
+              "",
+              "let token = response.token;",
+              "",
+              "pm.globals.set(\"DPAppRegistryToken\", token);",
+              "",
+              "console.log(\"DPAppRegistryToken saved to globals:\", token);",
+              ""
+            ],
+            "type": "text/javascript",
+            "packages": {}
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\": \"{{username}}\", \"password\": \"{{password}}\"}"
+        },
+        "url": {
+          "raw": "{{URL}}/login",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "SignUp",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"username\": \"{{username}}\", \"password\": \"{{password}}\", \"api_key\": \"{{api_key}}\"}"
+        },
+        "url": {
+          "raw": "{{URL}}/signup",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "signup"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Upload",
+      "protocolProfileBehavior": {
+        "disabledSystemHeaders": {}
+      },
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/Users/ku9n/Downloads/test.rpm"
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/Users/ku9n/Downloads/test.deb"
+            },
+            {
+              "key": "data",
+              "value": "{\"app_name\":\"{{app_name}}\",\"version\":\"{{version}}\",\"channel\":\"\",\"publish\":true,\"critical\":false,\"platform\":\"\",\"arch\":\"\",\"changelog\":\"### Changelog - Added new feature X - Fixed bug Y\"}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{URL}}/upload",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "upload"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Upload init (presigned)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body.upload_id) {",
+              "    pm.collectionVariables.set(\"upload_id\", body.upload_id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "data",
+              "value": "{\"app_name\":\"{{app_name}}\",\"version\":\"{{version}}\",\"channel\":\"{{channel}}\",\"publish\":false,\"critical\":false,\"platform\":\"{{platform}}\",\"arch\":\"{{arch}}\",\"changelog\":\"\"}",
+              "type": "text"
+            },
+            {
+              "key": "files",
+              "value": "[{\"name\":\"app.dmg\",\"md5\":\"<hex md5>\",\"sha256\":\"<hex sha256>\",\"sha512\":\"<hex sha512>\",\"length\":123456}]",
+              "type": "text",
+              "description": "Files the client PUTs directly to storage. Compute all digests in one pass over the file."
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/Users/ku9n/Downloads/releases.nightly.json",
+              "description": "Updater feed files only (velopack releases.*.json, sparkle appcast*.xml, ...) are sent inline.",
+              "disabled": true
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{URL}}/upload/init",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "upload",
+            "init"
+          ]
+        },
+        "description": "Starts a presigned upload. Response has upload_id and, per file, a PUT url with headers that must be sent verbatim. Then: curl -X PUT -H <headers> --upload-file <file> <url>, and call Upload complete. Returns 501 when the storage driver does not support presigned uploads."
+      },
+      "response": []
+    },
+    {
+      "name": "Upload complete (presigned)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"upload_id\": \"{{upload_id}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/upload/complete",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "upload",
+            "complete"
+          ]
+        },
+        "description": "Verifies the uploaded objects against the init manifest and creates the version, same response as Upload."
+      },
+      "response": []
+    },
+    {
+      "name": "Update Specific App",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "data",
+              "value": "{\"id\": \"\", \"app_name\": \"{{app_name}}\", \"version\": \"{{version}}\", \"channel\": \"\", \"publish\": false, \"platform\": \"\", \"arch\": \"\", \"changelog\": \"\"}",
+              "type": "text"
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/Users/ku9n/Downloads/test.rpm"
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": "/Users/ku9n/Downloads/test.deb"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{URL}}/apps/update",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "apps",
+            "update"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Channel",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\":\"\", \n    \"channel\":\"newname\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/channel/update",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "channel",
+            "update"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Arch",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\":\"\", \n    \"arch\":\"newname\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/arch/update",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "arch",
+            "update"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Platform",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\":\"\", \n    \"platform\":\"newname\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/platform/update",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "platform",
+            "update"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update App",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "data",
+              "value": "{\"id\":\"\", \"app\":\"newname\", \"reports\": \"false\", \"tuf\": \"false\", \"cdn\": \"false\", \"download_mode\": \"strict\"}",
+              "type": "text",
+              "uuid": "caec69c4-0a55-419b-b5c1-24b6c126c5b9"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{URL}}/app/update",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "app",
+            "update"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Channel",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"channel\": \"{{channel}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/channel/create",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "channel",
+            "create"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Platform",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"platform\": \"{{platform}}\",\n    \"updaters\": [\n        { \"type\": \"squirrel_windows\" },\n        { \"type\": \"manual\", \"default\": true },\n        { \"type\": \"squirrel_darwin\" },\n        { \"type\": \"sparkle\" }\n    ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/platform/create",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "platform",
+            "create"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Arch",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"arch\": \"{{arch}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/arch/create",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "arch",
+            "create"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create App",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "data",
+              "value": "{\"app\":\"{{app_name}}\", \"description\": \"description of app\", \"private\": \"true\", \"download_mode\": \"strict\"}",
+              "type": "text",
+              "uuid": "7eb0a953-2083-4db9-bfac-b349d14035f6"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{URL}}/app/create",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "app",
+            "create"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete specific app by id",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/apps/delete?id=",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "apps",
+            "delete"
+          ],
+          "query": [
+            {
+              "key": "id",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete platform by id",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/platform/delete?id",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "platform",
+            "delete"
+          ],
+          "query": [
+            {
+              "key": "id",
+              "value": null
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete channel by id",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/channel/delete?id",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "channel",
+            "delete"
+          ],
+          "query": [
+            {
+              "key": "id",
+              "value": null
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete arch by id",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/arch/delete?id",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "arch",
+            "delete"
+          ],
+          "query": [
+            {
+              "key": "id",
+              "value": null
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete app by id",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/app/delete?id",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "app",
+            "delete"
+          ],
+          "query": [
+            {
+              "key": "id",
+              "value": null
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete specific artifact by app id",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "data",
+              "value": "{\"id\": \"\", \"app_name\": \"{{app_name}}\", \"version\": \"{{version}}\", \"artifacts_to_delete\": [ \"0\"]}",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{URL}}/artifact/delete",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "artifact",
+            "delete"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Download",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Download-Token",
+            "value": "{{downloadToken}}",
+            "type": "text",
+            "description": "Download token of the artifact's app and channel. Not needed for unlisted apps."
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{DPAppRegistryToken}}",
+            "type": "text",
+            "disabled": true,
+            "description": "Admin or team user JWT. Returns JSON with download_url instead of a 302 redirect."
+          }
+        ],
+        "url": {
+          "raw": "{{URL}}/download?key=",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "download"
+          ],
+          "query": [
+            {
+              "key": "key",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Team User",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"teamuser1\",\n  \"password\": \"password123\",\n  \"permissions\": {\n    \"apps\": {\n      \"create\": true,\n      \"delete\": false,\n      \"edit\": true,\n      \"download\": true,\n      \"upload\": false,\n      \"allowed\": [\"\"]\n    },\n    \"channels\": {\n      \"create\": true,\n      \"delete\": false,\n      \"edit\": true,\n      \"allowed\": [\"\"]\n    },\n    \"platforms\": {\n      \"create\": true,\n      \"delete\": false,\n      \"edit\": true,\n      \"allowed\": [\"\"]\n    },\n    \"archs\": {\n      \"create\": true,\n      \"delete\": false,\n      \"edit\": true,\n      \"allowed\": [\"\"]\n    }\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/user/create",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "user",
+            "create"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Team User",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"67ffc3f5a2120e73468ce66c\",\n  \"username\": \"teamuser1\",\n  \"password\": \"password123\",\n  \"permissions\": {\n    \"apps\": {\n      \"create\": false,\n      \"delete\": true,\n      \"edit\": true,\n      \"download\": true,\n      \"upload\": true,\n      \"allowed\": [\"\", \"\"]\n    },\n    \"channels\": {\n      \"create\": true,\n      \"delete\": true,\n      \"edit\": true,\n      \"allowed\": [\"\"]\n    },\n    \"platforms\": {\n      \"create\": true,\n      \"delete\": false,\n      \"edit\": true,\n      \"allowed\": [\"\"]\n    },\n    \"archs\": {\n      \"create\": true,\n      \"delete\": false,\n      \"edit\": true,\n      \"allowed\": [\"\"]\n    }\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/user/update",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "user",
+            "update"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Team Users",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/users/list",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "users",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Report Keys",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/report-keys/list",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "report-keys",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Regenerate Report Key",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"app_id\": \"69ef5400b198f14a2f590415\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/report-keys/regenerate",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "report-keys",
+            "regenerate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Download Tokens",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/download-tokens/list",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "download-tokens",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Regenerate Download Token",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"app_id\": \"\",\n    \"channel_id\": \"\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/download-tokens/regenerate",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "download-tokens",
+            "regenerate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Team User",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"id\": \"\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/user/delete",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "user",
+            "delete"
+          ],
+          "query": [
+            {
+              "key": "id",
+              "value": "67f8e842675a6e160d48a59c",
+              "type": "text",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Whoami",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/whoami",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "whoami"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Admin",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"id\": \"\",\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n    \n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/admin/update",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "admin",
+            "update"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Telemetry",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/telemetry?range=week",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "telemetry"
+          ],
+          "query": [
+            {
+              "key": "range",
+              "value": "week"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Telemetry beacon",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Device-ID",
+            "value": "ncjskbfhbhjs473tdah",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{URL}}/telemetry/beacon?app_name={{app_name}}&version={{version}}&channel={{channel}}&platform={{platform}}&arch={{arch}}&owner={{username}}&is_latest=true",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "telemetry",
+            "beacon"
+          ],
+          "query": [
+            {
+              "key": "app_name",
+              "value": "{{app_name}}"
+            },
+            {
+              "key": "version",
+              "value": "{{version}}"
+            },
+            {
+              "key": "channel",
+              "value": "{{channel}}"
+            },
+            {
+              "key": "platform",
+              "value": "{{platform}}"
+            },
+            {
+              "key": "arch",
+              "value": "{{arch}}"
+            },
+            {
+              "key": "owner",
+              "value": "{{username}}"
+            },
+            {
+              "key": "is_latest",
+              "value": "true",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create CI/CD token",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"name\": \"GitHub Actions - MyApp\", \"allowed_apps\": [\"69259667351f660c2fd62d39\", \"692ed1272b2c3bb989ac29a5\"], \"expires_at\": \"2026-12-31T00:00:00Z\" }",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/token/create",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "token",
+            "create"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List CI/CD token",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/token/list",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "token",
+            "list"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete CI/CD token",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"id\": \"69972c0c93be639a3a718e6b\" }",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/token/delete",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "token",
+            "delete"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Check TUF bootstrap",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/tuf/v1/bootstrap?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "bootstrap"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Start TUF bootstraping",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"settings\": {\n    \"roles\": {\n      \"root\": {\n        \"expiration\": 364\n      },\n      \"timestamp\": {\n        \"expiration\": 1\n      },\n      \"snapshot\": {\n        \"expiration\": 6\n      },\n      \"targets\": {\n        \"expiration\": 6\n      },\n      \"delegations\": {\n        \"keys\": {\n          \"eb6c12a7654f2fd7ce2e9bc8d3a97a605c05876e6e4b4f1fe86143b3897f91bf\": {\n            \"keytype\": \"ed25519\",\n            \"scheme\": \"ed25519\",\n            \"keyval\": {\n              \"public\": \"92adbbcb17210e4148ca08622d85f038012ccb704cae29d33ea934ba2c30d860\"\n            }\n          }\n        },\n        \"roles\": [\n          {\n            \"name\": \"default\",\n            \"terminating\": false,\n            \"keyids\": [\n              \"eb6c12a7654f2fd7ce2e9bc8d3a97a605c05876e6e4b4f1fe86143b3897f91bf\"\n            ],\n            \"threshold\": 1,\n            \"paths\": [\n              \"ku9n/tuf/\",\n              \"tuf-ku9n/\",\n              \"electron-builder/tuf-ku9n/\",\n              \"squirrel_windows/tuf-ku9n/\"\n            ]\n          }\n        ]\n      }\n    }\n  },\n  \"metadata\": {\n    \"root\": {\n      \"signatures\": [\n        {\n          \"keyid\": \"968352800a111846dad3f17a9371eb09a273ddef7c774252801be50cfda5520d\",\n          \"sig\": \"2ddce997785246627572fbefe1a09c23caae58d69d19efd4e902b30f9c902cf2e9859f9f53c7a0223c6f84d2a873864088758990df952c8027973eca999df504\"\n        },\n        {\n          \"keyid\": \"9faebed624cd1be5521cc9b5c4285afb441a1d042053c78229da2ef8336a33f0\",\n          \"sig\": \"ff7152dbbe8e303fb567e40ce428451d069298e3915b732c940cd43d589f5f3f6f38cc3992e4fc2aefb5ddcee882f1bfba1d9e050aee3ae0beb0e914cfffed09\"\n        }\n      ],\n      \"signed\": {\n        \"_type\": \"root\",\n        \"version\": 1,\n        \"spec_version\": \"1.0.31\",\n        \"expires\": \"2027-01-29T12:47:14Z\",\n        \"consistent_snapshot\": true,\n        \"keys\": {\n          \"968352800a111846dad3f17a9371eb09a273ddef7c774252801be50cfda5520d\": {\n            \"keytype\": \"ed25519\",\n            \"scheme\": \"ed25519\",\n            \"keyval\": {\n              \"public\": \"8b70bc180ef010eb3f606f0a7dde6456ae2cc32958bbff34ac5a70ea250b5ca7\"\n            }\n          },\n          \"9faebed624cd1be5521cc9b5c4285afb441a1d042053c78229da2ef8336a33f0\": {\n            \"keytype\": \"ed25519\",\n            \"scheme\": \"ed25519\",\n            \"keyval\": {\n              \"public\": \"03e2e74b81bfd426c641bb392482bd24dd852094bb9843ecde4875a11b088947\"\n            }\n          },\n          \"48525fedb706148ca1aa24c262ca88c3a1a5a478992b7e8cc950c330de56dba8\": {\n            \"keytype\": \"ed25519\",\n            \"scheme\": \"ed25519\",\n            \"keyval\": {\n              \"public\": \"0036841a4e89fda24e09bac8b17006d52b14564613c9cc0025cd16dc0f969ae7\"\n            }\n          },\n          \"b19a200ed85f276cb5f1aab998f272ad37c129d527d91dc13252031888d3776b\": {\n            \"keytype\": \"ed25519\",\n            \"scheme\": \"ed25519\",\n            \"keyval\": {\n              \"public\": \"1e454f8d6421ffe0c60630327fd02e29cc870232816248ebc126cdba2a3c662c\"\n            }\n          },\n          \"7bf578578be1794e70199d9ea6edafcf643ef44ea38c91dd579b65b73d871fdc\": {\n            \"keytype\": \"ed25519\",\n            \"scheme\": \"ed25519\",\n            \"keyval\": {\n              \"public\": \"6af0258b72ce858f9c4ffdc21b3009a20f839c79a28266de9131c951158b04b6\"\n            }\n          },\n          \"eb6c12a7654f2fd7ce2e9bc8d3a97a605c05876e6e4b4f1fe86143b3897f91bf\": {\n            \"keytype\": \"ed25519\",\n            \"scheme\": \"ed25519\",\n            \"keyval\": {\n              \"public\": \"92adbbcb17210e4148ca08622d85f038012ccb704cae29d33ea934ba2c30d860\"\n            }\n          }\n        },\n        \"roles\": {\n          \"root\": {\n            \"keyids\": [\n              \"968352800a111846dad3f17a9371eb09a273ddef7c774252801be50cfda5520d\",\n              \"9faebed624cd1be5521cc9b5c4285afb441a1d042053c78229da2ef8336a33f0\"\n            ],\n            \"threshold\": 2\n          },\n          \"timestamp\": {\n            \"keyids\": [\n              \"48525fedb706148ca1aa24c262ca88c3a1a5a478992b7e8cc950c330de56dba8\"\n            ],\n            \"threshold\": 1\n          },\n          \"snapshot\": {\n            \"keyids\": [\n              \"b19a200ed85f276cb5f1aab998f272ad37c129d527d91dc13252031888d3776b\"\n            ],\n            \"threshold\": 1\n          },\n          \"targets\": {\n            \"keyids\": [\n              \"7bf578578be1794e70199d9ea6edafcf643ef44ea38c91dd579b65b73d871fdc\"\n            ],\n            \"threshold\": 1\n          }\n        }\n      }\n    }\n  },\n  \"appName\": \"tuf\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/bootstrap",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "bootstrap"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Generate TUF root keys",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"appName\": \"tuf\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/bootstrap/generate",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "bootstrap",
+            "generate"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Check TUF tasks",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/tuf/v1/task?task_id=ecca335d-9192-4fc2-bbb0-3d7a38a55c84",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "task"
+          ],
+          "query": [
+            {
+              "key": "task_id",
+              "value": "ecca335d-9192-4fc2-bbb0-3d7a38a55c84",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Publish artifacts",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"app_id\": \"69259667351f660c2fd62d39\",\n  \"version\": \"0.0.0.5\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/artifacts/publish",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "artifacts",
+            "publish"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete specific TUF artifact",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"id\": \"697100362fadc9dccd0e3a96\", \"app_name\": \"tuf\", \"version\": \"0.0.0.5\", \"artifacts_to_delete\": [\"0\"]}"
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/artifacts/delete",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "artifacts",
+            "delete"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get TUF config",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/tuf/v1/config?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "config"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Put TUF config",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "  {\n    \"settings\": {\n      \"expiration\": {\n        \"targets\": 100,\n        \"snapshot\": 50,\n        \"timestamp\": 20\n      }\n    }\n  }",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/config?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "config"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "TUF metadata rotation (offline signing)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"metadata\": {\n    \"root\": {\n  \"signatures\": [],\n  \"signed\": {\n    \"_type\": \"root\",\n    \"consistent_snapshot\": true,\n    \"expires\": \"2028-01-29T12:47:14Z\",\n    \"keys\": {\n      \"48525fedb706148ca1aa24c262ca88c3a1a5a478992b7e8cc950c330de56dba8\": {\n        \"keytype\": \"ed25519\",\n        \"keyval\": {\n          \"public\": \"0036841a4e89fda24e09bac8b17006d52b14564613c9cc0025cd16dc0f969ae7\"\n        },\n        \"scheme\": \"ed25519\"\n      },\n      \"7bf578578be1794e70199d9ea6edafcf643ef44ea38c91dd579b65b73d871fdc\": {\n        \"keytype\": \"ed25519\",\n        \"keyval\": {\n          \"public\": \"6af0258b72ce858f9c4ffdc21b3009a20f839c79a28266de9131c951158b04b6\"\n        },\n        \"scheme\": \"ed25519\"\n      },\n      \"b19a200ed85f276cb5f1aab998f272ad37c129d527d91dc13252031888d3776b\": {\n        \"keytype\": \"ed25519\",\n        \"keyval\": {\n          \"public\": \"1e454f8d6421ffe0c60630327fd02e29cc870232816248ebc126cdba2a3c662c\"\n        },\n        \"scheme\": \"ed25519\"\n      },\n      \"eb6c12a7654f2fd7ce2e9bc8d3a97a605c05876e6e4b4f1fe86143b3897f91bf\": {\n        \"keytype\": \"ed25519\",\n        \"keyval\": {\n          \"public\": \"92adbbcb17210e4148ca08622d85f038012ccb704cae29d33ea934ba2c30d860\"\n        },\n        \"scheme\": \"ed25519\"\n      },\n      \"18aa7db1a150ab12b7fcd143d782afec2ba2600d654d352557b9d048a0d7b6b0\": {\n        \"keytype\": \"ed25519\",\n        \"scheme\": \"ed25519\",\n        \"keyval\": {\n          \"public\": \"1c05fbe4059718357bf58e2d89454ebd198f6cb035ad6138e332ecf6a21db370\"\n        }\n      },\n      \"42d7f85d3981872a7b687a3c11a8d6adc856b9048242784cfeeae88ec4bf69a5\": {\n        \"keytype\": \"ed25519\",\n        \"scheme\": \"ed25519\",\n        \"keyval\": {\n          \"public\": \"27037c131a1b1a84f467766533777113e7958f75404cef1c3ff22ca6739bd5c5\"\n        }\n      }\n    },\n    \"roles\": {\n      \"root\": {\n        \"keyids\": [\n          \"18aa7db1a150ab12b7fcd143d782afec2ba2600d654d352557b9d048a0d7b6b0\",\n          \"42d7f85d3981872a7b687a3c11a8d6adc856b9048242784cfeeae88ec4bf69a5\"\n        ],\n        \"threshold\": 2\n      },\n      \"snapshot\": {\n        \"keyids\": [\n          \"b19a200ed85f276cb5f1aab998f272ad37c129d527d91dc13252031888d3776b\"\n        ],\n        \"threshold\": 1\n      },\n      \"targets\": {\n        \"keyids\": [\n          \"7bf578578be1794e70199d9ea6edafcf643ef44ea38c91dd579b65b73d871fdc\"\n        ],\n        \"threshold\": 1\n      },\n      \"timestamp\": {\n        \"keyids\": [\n          \"48525fedb706148ca1aa24c262ca88c3a1a5a478992b7e8cc950c330de56dba8\"\n        ],\n        \"threshold\": 1\n      }\n    },\n    \"spec_version\": \"1.0.31\",\n    \"version\": 2\n  }\n}\n  }\n}\n",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/metadata?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "metadata"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get unsigned TUF root metadata",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/tuf/v1/metadata/sign?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "metadata",
+            "sign"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Post unsigned TUF root metadata",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"root\",\n  \"signature\": {\n  \"keyid\": \"9faebed624cd1be5521cc9b5c4285afb441a1d042053c78229da2ef8336a33f0\",\n  \"sig\": \"7dd21f2243bab47fa00d5119423c202b7f88eadce659cda4241ae597b98299d7cc7a9e519383e4c03651973793e5bf3637a8c882c7b7960dde938e9ccf7ee306\"\n}\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/metadata/sign?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "metadata",
+            "sign"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Stage Targets/Delegate metadata",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"default\",\n  \"delegator\": \"targets\",\n  \"metadata\": {\n    \"targets\": {\n      \"signatures\": [],\n      \"signed\": {\n        \"_type\": \"targets\",\n        \"delegations\": {\n          \"keys\": {\n            \"a2d1b0aa26f9b36b20057ec0b939194c008fa5d7e43b5ad4754601dc19b85324\": {\n              \"keytype\": \"ecdsa\",\n              \"scheme\": \"ecdsa-sha2-nistp256\",\n              \"keyval\": {\n                \"public\": \"-----BEGIN PUBLIC KEY-----\\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEh1gtVb8sxSyV+alXFemIAOVAmAlO\\njfkCwUAcz46zA4d3Rp1dZglkmeIUwcgV3vOgO58b8ulZ//Vqvw6bqh4Swg==\\n-----END PUBLIC KEY-----\\n\"\n              }\n            },\n            \"bc2256ed61c4bae55835b824a84cc9b6c60fc5905955107466042ac5c6606f84\": {\n              \"keytype\": \"ecdsa\",\n              \"scheme\": \"ecdsa-sha2-nistp256\",\n              \"keyval\": {\n                \"public\": \"-----BEGIN PUBLIC KEY-----\\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEHd/iZ8l7fINy88rLSxUcsI/KJeqT\\ncPPq5kNXHitJomEOf/iPVS/ftGnpFrjpg/j6K9OPE98mRXhlb1SnZeJwTw==\\n-----END PUBLIC KEY-----\\n\"\n              }\n            }\n          },\n          \"roles\": [\n            {\n              \"keyids\": [\n                \"a2d1b0aa26f9b36b20057ec0b939194c008fa5d7e43b5ad4754601dc19b85324\",\n                \"bc2256ed61c4bae55835b824a84cc9b6c60fc5905955107466042ac5c6606f84\"\n              ],\n              \"name\": \"default\",\n              \"paths\": [\n                \"admin/tuf/*\",\n                \"tuf-admin/*\",\n                \"electron-builder/tuf-admin/*\",\n                \"squirrel_windows/tuf-admin/*\",\n                \"tuf-admin/nightly/darwin/arm64/tuf-0.0.0.1\"\n              ],\n              \"terminating\": false,\n              \"threshold\": 2\n            }\n          ]\n        },\n        \"expires\": \"2027-05-19T11:03:54Z\",\n        \"spec_version\": \"1.0.31\",\n        \"targets\": {},\n        \"version\": 3\n      }\n    },\n    \"default\": {\n      \"signatures\": [],\n      \"signed\": {\n        \"_type\": \"targets\",\n        \"expires\": \"2026-11-09T11:03:54Z\",\n        \"spec_version\": \"1.0.31\",\n        \"targets\": {\n          \"tuf-admin/nightly/darwin/arm64/tuf-0.0.0.1\": {\n            \"hashes\": {\n              \"sha256\": \"67728429e346249f5c7439d3093c01217e0b52584e8997cb223e66f84137c800\",\n              \"sha512\": \"ad07fd1624df82ed008f548ac38a42a5ac4b600fac73879d421ed0f019d92f45309105e41692d6d90840805fbba87e41fa678f3cc3079d2eed0481315fe764a3\"\n            },\n            \"length\": 39759064\n          }\n        },\n        \"version\": 3\n      }\n    }\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/metadata/delegated/rotate?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "metadata",
+            "delegated",
+            "rotate"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete signing metadata",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"root\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/metadata/sign/delete?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "metadata",
+            "sign",
+            "delete"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Force online metadata update",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"roles\": [\"targets\", \"snapshot\", \"timestamp\"]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/metadata/online?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "metadata",
+            "online"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get current TUF root metadata",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/tuf/v1/metadata/root?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "metadata",
+            "root"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get current TUF targets metadata",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/tuf/v1/metadata/targets?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "metadata",
+            "targets"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get current TUF delegated metadata",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/tuf/v1/metadata/delegated?appName=tuf&roleName=default",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "metadata",
+            "delegated"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            },
+            {
+              "key": "roleName",
+              "value": "default",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Bootstrap recovery",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"appName\": \"tuf\",\n    \"timeout\": 2\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/bootstrap/recovery",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "bootstrap",
+            "recovery"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Rotate keys(TAP-8, in progress, not implemented yet)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"metadata\": {\n    \"signatures\": [\n      {\n        \"keyid\": \"af9ede9cd1ba854a4b84c2264d83dcd0b1829fea10a329f8c9d72f390d9f47cc\",\n        \"sig\": \"61d310d6d114a4e095b9ce881172f45b1799c11959d670fcee4023da84fb81088959f1e0d63d7f6b67d47331a1723d07a34aef55c058ea76f5a438307b70720b\"\n      },\n      {\n        \"keyid\": \"e077227a0722e1bec9b56f17a116bd639169701ae602f98f7f8df49b283f9ccc\",\n        \"sig\": \"4e9715f25172c18ba28593bcd8e9a6e619ab3ba70e7c73f9dba7457ee1c8b48bd9c320772a0de2cb43e84f514fbd9dc2d2d001131883c78385cfc3875093260c\"\n      }\n    ],\n    \"signed\": {\n      \"_type\": \"targets\",\n      \"delegations\": {\n        \"keys\": {\n          \"0d226519c91dd1f4b4f888855d8c6307bcc02547168609c2bdda1c6ce064eb49\": {\n            \"keytype\": \"ed25519\",\n            \"keyval\": {\n              \"public\": \"4dc3f6969d733cb282ab8d71ad5d12ef9b49646e5ca900ca78836b89e76d9c4e\"\n            },\n            \"scheme\": \"ed25519\"\n          }\n        },\n        \"roles\": [\n          {\n            \"keyids\": [\n              \"0d226519c91dd1f4b4f888855d8c6307bcc02547168609c2bdda1c6ce064eb49\"\n            ],\n            \"name\": \"default\",\n            \"paths\": [\n              \"admin/tuf/*\",\n              \"tuf-admin/*\",\n              \"electron-builder/tuf-admin/*\",\n              \"squirrel_windows/tuf-admin/*\",\n              \"tuf-admin/tuf-0.0.0.1\"\n            ],\n            \"terminating\": false,\n            \"threshold\": 1\n          }\n        ]\n      },\n      \"expires\": \"2026-05-04T10:11:30Z\",\n      \"spec_version\": \"1.0.31\",\n      \"targets\": {},\n      \"version\": 3\n    }\n  },\n  \"role\": \"targets\",\n  \"rotate\": {\n    \"signatures\": [\n      {\n        \"keyid\": \"0edf529e846ba22021b1648796589469f8020dbaeaa325dcb4df1baf3a4d66f1\",\n        \"sig\": \"a14ece85914de7686256f8002e558dbbaa16815f8359ac8aadaf27a21017a7daeb3973a0b45b970776707fc07adc85eb6133200e8fe81bcf90cdbad12b6b2c0c\"\n      },\n      {\n        \"keyid\": \"45499c143100d19be5efc26aad3621bf04392069e4b551320e0d45e0dfd45d7f\",\n        \"sig\": \"fea20824c24dcb6a01ad49634e98aa67b62e1f05a7d1b8b38522c73d0f8a6787af1e1cf013bf7720b09e2511a15a4b3fd4f1b751752450216a4d7f8cd82d300a\"\n      }\n    ],\n    \"signed\": {\n      \"_type\": \"rotate\",\n      \"keys\": {\n        \"af9ede9cd1ba854a4b84c2264d83dcd0b1829fea10a329f8c9d72f390d9f47cc\": {\n          \"keytype\": \"ed25519\",\n          \"keyval\": {\n            \"public\": \"cb8fd2b9f15a99a3d447764bb4d9b291f29957fdd673be8b386ea5cfedbb2a38\"\n          },\n          \"scheme\": \"ed25519\"\n        },\n        \"e077227a0722e1bec9b56f17a116bd639169701ae602f98f7f8df49b283f9ccc\": {\n          \"keytype\": \"ed25519\",\n          \"keyval\": {\n            \"public\": \"05f07d56194774063e7a5fc758f5ed00e168d4d5b6fabc8a2c25eca8dd21d977\"\n          },\n          \"scheme\": \"ed25519\"\n        }\n      },\n      \"role\": \"targets\",\n      \"threshold\": 2,\n      \"version\": 1\n    }\n  }\n}"
+        },
+        "url": {
+          "raw": "{{URL}}/tuf/v1/metadata/rotate-keys?appName=tuf",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "tuf",
+            "v1",
+            "metadata",
+            "rotate-keys"
+          ],
+          "query": [
+            {
+              "key": "appName",
+              "value": "tuf"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Report ingest",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "rpk_82a014c973e2f3ff73f3973cbb4e5fdb6232726f3ad13ed6e8ba3b0a6a91fb93",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Device-ID",
+            "value": "7f2c9a2e-1B2d-3c8a-1f22-arc123je1456",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"application\": { \"name\": \"test\", \"version\": \"1.4.2\", \"channel\": \"stable\" },\n    \"system\":      { \"platform\": \"windows\", \"arch\": \"amd64\" },\n    \"event\":       { \"type\": \"update_failure\", \"reason\": \"checksum_mismatch\" }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/reports/ingest",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "reports",
+            "ingest"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List report groups",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/reports/groups",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "reports",
+            "groups"
+          ],
+          "query": [
+            {
+              "key": "app",
+              "value": "test",
+              "type": "text",
+              "disabled": true
+            },
+            {
+              "key": "version",
+              "value": "1.4.17",
+              "type": "text",
+              "disabled": true
+            },
+            {
+              "key": "type",
+              "value": "update_failure",
+              "type": "text",
+              "disabled": true
+            },
+            {
+              "key": "reason",
+              "value": "panic",
+              "type": "text",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update report status",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "PATCH",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"status\":\"resolved\",\"tags\":[\"ui\",\"needs-repro\"],\"note\":\"tracked in JIRA-123\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{URL}}/reports/groups/9c460a0d02a7a80a1456b49d88033100cad27266848feb2a1cdd7480d50efbcc",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "reports",
+            "groups",
+            "9c460a0d02a7a80a1456b49d88033100cad27266848feb2a1cdd7480d50efbcc"
+          ],
+          "query": [
+            {
+              "key": "app",
+              "value": "test",
+              "type": "text",
+              "disabled": true
+            },
+            {
+              "key": "version",
+              "value": "1.4.17",
+              "type": "text",
+              "disabled": true
+            },
+            {
+              "key": "type",
+              "value": "update_failure",
+              "type": "text",
+              "disabled": true
+            },
+            {
+              "key": "reason",
+              "value": "panic",
+              "type": "text",
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Report delete",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{DPAppRegistryToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{URL}}/reports/groups/9c460a0d02a7a80a1456b49d88033100cad27266848feb2a1cdd7480d50efbcc",
+          "host": [
+            "{{URL}}"
+          ],
+          "path": [
+            "reports",
+            "groups",
+            "9c460a0d02a7a80a1456b49d88033100cad27266848feb2a1cdd7480d50efbcc"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "lPkYvXilpWb-91q2AAkmh66NaueiNErINR-mAy6mKV8GAqFo1Pwp1aUB",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "username",
+      "value": "admin"
+    },
+    {
+      "key": "password",
+      "value": "password"
+    },
+    {
+      "key": "app_name",
+      "value": "myapp"
+    },
+    {
+      "key": "version",
+      "value": "0.0.1"
+    },
+    {
+      "key": "URL",
+      "value": "http://localhost:9000"
+    },
+    {
+      "key": "channel",
+      "value": "nightly"
+    },
+    {
+      "key": "platform",
+      "value": "universal"
+    },
+    {
+      "key": "arch",
+      "value": "universal"
+    },
+    {
+      "key": "api_key",
+      "value": "UHp3aKb40fwpoKZluZByWQ"
+    },
+    {
+      "key": "downloadToken",
+      "value": ""
+    },
+    {
+      "key": "upload_id",
+      "value": ""
+    }
+  ]
+}

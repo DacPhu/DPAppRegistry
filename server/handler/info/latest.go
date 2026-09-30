@@ -1,0 +1,640 @@
+package info
+
+import (
+	"context"
+	"encoding/json"
+	db "github.com/DacPhu/DPAppRegistry/mongod"
+	"github.com/DacPhu/DPAppRegistry/server/utils"
+	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
+	"fmt"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+const squirrelReleasesContentType = "text/plain; charset=utf-8"
+
+func maybeSquirrelReleasesFeed(c *gin.Context, params map[string]interface{}, response gin.H, httpStatus int) (string, bool) {
+	if params["updater"].(string) != "squirrel_windows" || httpStatus != http.StatusFound {
+		return "", false
+	}
+	updateURL, ok := response["url"].(string)
+	if !ok || updateURL == "" {
+		return "", false
+	}
+	if strings.Contains(updateURL, "/download?key=") {
+		// Private app: cannot serve the package directly from storage.
+		return "", false
+	}
+	return buildSquirrelReleasesFeed(c, updateURL)
+}
+
+// buildSquirrelReleasesFeed reads the RELEASES file referenced by updateURL from
+// storage and rewrites its filename column to absolute URLs (the same storage
+// directory the RELEASES file lives in) so Squirrel downloads each .nupkg
+// directly from storage instead of through the API.
+func buildSquirrelReleasesFeed(c *gin.Context, updateURL string) (string, bool) {
+	env := viper.GetViper()
+
+	key, err := utils.ExtractS3Key(updateURL, false, env)
+	if err != nil {
+		logrus.Errorf("Failed to extract RELEASES key from %s: %v", updateURL, err)
+		return "", false
+	}
+
+	factory := utils.NewStorageFactory(env)
+	storageClient, err := factory.CreateStorageClient()
+	if err != nil {
+		logrus.Errorf("Failed to create storage client for RELEASES feed: %v", err)
+		return "", false
+	}
+
+	tmpFile, err := os.CreateTemp("", "dpappregistry-releases-*")
+	if err != nil {
+		logrus.Errorf("Failed to create temp file for RELEASES feed: %v", err)
+		return "", false
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(tmpPath)
+
+	if err := storageClient.DownloadObject(c.Request.Context(), env.GetString("S3_BUCKET_NAME"), key, tmpPath); err != nil {
+		logrus.Errorf("Failed to download RELEASES %s: %v", key, err)
+		return "", false
+	}
+
+	content, err := os.ReadFile(tmpPath)
+	if err != nil {
+		logrus.Errorf("Failed to read RELEASES feed from %s: %v", tmpPath, err)
+		return "", false
+	}
+
+	baseURL := updateURL[:strings.LastIndex(updateURL, "/")]
+	logrus.Debugf("Built rewritten squirrel_windows RELEASES feed with base %s", baseURL)
+	return updaters.RewriteReleasesToAbsoluteURLs(string(content), baseURL), true
+}
+
+type CachedResponse struct {
+	Response    interface{} `json:"response"`
+	HTTPStatus  int         `json:"http_status"`
+	ContentType string      `json:"content_type,omitempty"`
+	HasUpdate   bool        `json:"has_update,omitempty"`
+}
+
+func resolveCachedHasUpdate(cachedData CachedResponse) bool {
+	hasUpdate := cachedData.HasUpdate
+	if responseMap, ok := cachedData.Response.(map[string]interface{}); ok {
+		if updateAvailable, exists := responseMap["update_available"]; exists {
+			if updateAvailableBool, ok := updateAvailable.(bool); ok {
+				hasUpdate = updateAvailableBool
+			}
+		}
+	}
+	return hasUpdate
+}
+
+// CreateCacheKey scopes cached responses by owner: app names are unique only per owner.
+// Values are query-escaped so they cannot forge another key or inject glob characters into CacheKeyPattern.
+func CreateCacheKey(params map[string]interface{}) string {
+	baseKey := fmt.Sprintf("owner=%s&app_name=%s&version=%s&channel=%s&platform=%s&arch=%s",
+		cacheKeyPart(params["owner"]), cacheKeyPart(params["app_name"]), cacheKeyPart(params["version"]),
+		cacheKeyPart(params["channel"]), cacheKeyPart(params["platform"]), cacheKeyPart(params["arch"]))
+
+	if updater := cacheKeyPart(params["updater"]); updater != "" {
+		baseKey += fmt.Sprintf("&updater=%s", updater)
+	}
+
+	if pkg := cacheKeyPart(params["package"]); pkg != "" {
+		baseKey += fmt.Sprintf("&package=%s", pkg)
+	}
+
+	return baseKey
+}
+
+// CacheKeyPattern matches every cached response of one app channel, across versions, platforms, archs, updaters and packages.
+func CacheKeyPattern(owner, appName, channel string) string {
+	return fmt.Sprintf("owner=%s&app_name=%s&version=*&channel=%s&platform=*&arch=*",
+		url.QueryEscape(owner), url.QueryEscape(appName), url.QueryEscape(channel))
+}
+
+func cacheKeyPart(value interface{}) string {
+	s, _ := value.(string)
+	return url.QueryEscape(s)
+}
+
+func cacheResponse(ctx context.Context, rdb *redis.Client, cacheKey string, response interface{}, httpStatus int, contentType string, hasUpdate bool) {
+	cachedData := CachedResponse{
+		Response:    response,
+		HTTPStatus:  httpStatus,
+		ContentType: contentType,
+		HasUpdate:   hasUpdate,
+	}
+
+	jsonData, err := json.Marshal(cachedData)
+	if err != nil {
+		logrus.Error("Error marshalling cached response:", err)
+		return
+	}
+	err = rdb.Set(ctx, cacheKey, jsonData, time.Hour*24).Err()
+	if err != nil {
+		logrus.Error("Error setting data to Redis:", err)
+	} else {
+		logrus.Debugln("Successfully set data to cache:", cachedData)
+	}
+}
+
+// BuildChangelogResponse builds changelog string from changelog entries
+func BuildChangelogResponse(changelog []db.Changelog) string {
+	if len(changelog) == 0 {
+		return ""
+	}
+
+	var changelogBuilder strings.Builder
+	for _, changelog := range changelog {
+		if changelog.Changes != "" {
+			changelogBuilder.WriteString(changelog.Changes)
+			changelogBuilder.WriteString("\n")
+		}
+	}
+
+	// Only return if there was any changelog to include
+	if changelogBuilder.Len() > 0 {
+		return changelogBuilder.String()
+	}
+
+	return ""
+}
+
+// ignoredArtifactPackages lists packages that are derived by updaters themselves
+// (e.g. electron-builder fetches .blockmap based on the yml, Squirrel fetches
+// .nupkg from the RELEASES feed) and must not be returned.
+var ignoredArtifactPackages = map[string]bool{
+	"blockmap": true,
+	"nupkg":    true,
+}
+
+// BuildArtifactUrls builds artifact URLs map from artifacts slice
+func BuildArtifactUrls(artifacts []db.Artifact, platform, arch string) map[string]string {
+	logrus.Debugf("Artifacts in BuildArtifactUrls: %v", artifacts)
+	urls := make(map[string]string)
+
+	for _, artifact := range artifacts {
+		pkg := strings.TrimPrefix(artifact.Package, ".")
+		if ignoredArtifactPackages[pkg] {
+			continue
+		}
+
+		var key string
+		if artifact.Package == "" {
+			key = "update_url"
+		} else if artifact.Package != "" && artifact.Link != "" {
+			key = "update_url_" + pkg
+		}
+
+		if artifact.Link != "" && strings.Contains(artifact.Link, platform) && strings.Contains(artifact.Link, arch) {
+			urls[key] = artifact.Link
+			if artifact.Signature != "" {
+				urls["signature"] = artifact.Signature
+			}
+		}
+	}
+
+	return urls
+}
+
+func FindLatestVersion(c *gin.Context, repository db.AppRepository, db *mongo.Database, rdb *redis.Client, performanceMode bool) {
+	var httpStatus int
+	validatedParams, err := utils.ValidateParamsLatest(c, db)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	logrus.Debugf("Validated parameters: %+v", validatedParams)
+	ctx, ctxErr := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer ctxErr()
+
+	access, allowed := authorizeReadRequest(ctx, c, repository, validatedParams, http.StatusBadRequest)
+	if !allowed {
+		return
+	}
+
+	cacheKey := CreateCacheKey(validatedParams)
+	logrus.Debugf("Generated cache key: %s", cacheKey)
+	// A private app is never cached: its response depends on the caller's credential, and the gate above
+	// already cost one lookup. Check Redis only if PERFORMANCE_MODE is true and Redis client is not nil.
+	useCache := performanceMode && rdb != nil && !access.Private
+	if useCache {
+		cachedResponse, err := rdb.Get(ctx, cacheKey).Result()
+		if err == nil {
+			// If cache exists, return the cached response
+			var cachedData CachedResponse
+			if json.Unmarshal([]byte(cachedResponse), &cachedData) == nil {
+				logrus.Debugln("Return cached data: ", cachedData)
+				deviceID := c.GetHeader("X-Device-ID")
+				logStatsToRedis(ctx, rdb, validatedParams, resolveCachedHasUpdate(cachedData), deviceID)
+
+				// Serve cached raw-body responses (e.g. squirrel_windows RELEASES feed)
+				if cachedData.ContentType != "" {
+					if body, ok := cachedData.Response.(string); ok {
+						c.Data(cachedData.HTTPStatus, cachedData.ContentType, []byte(body))
+						return
+					}
+				}
+
+				// Handle redirect for cached response
+				if cachedData.HTTPStatus == 302 {
+					if responseMap, ok := cachedData.Response.(map[string]interface{}); ok {
+						if redirectURL, exists := responseMap["url"]; exists {
+							c.Redirect(http.StatusFound, redirectURL.(string))
+							return
+						}
+					}
+				}
+
+				c.JSON(cachedData.HTTPStatus, cachedData.Response)
+				return
+			}
+		}
+	}
+
+	// Captured before the response is read, so an upload that invalidates the CDN afterwards wins over this publish.
+	cdnEpoch := ""
+	if access.CdnEdge {
+		cdnEpoch = ReadCDNEpoch(ctx, rdb, validatedParams["owner"].(string), validatedParams["app_name"].(string))
+	}
+
+	// Request on repository
+	checkResult, err := repository.CheckLatestVersion(validatedParams["app_name"].(string), validatedParams["version"].(string), validatedParams["channel"].(string), validatedParams["platform"].(string), validatedParams["arch"].(string), ctx, validatedParams["owner"].(string))
+	if err != nil {
+		logrus.Debugf("CheckResult: %+v", checkResult)
+		logrus.Error("Error in CheckLatestVersion: ", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// Log stats for the request
+	deviceID := c.GetHeader("X-Device-ID")
+	logrus.Debugf("X-Device-ID: %s", deviceID)
+	// Update stats with actual update status
+	logStatsToRedis(ctx, rdb, validatedParams, checkResult.Found, deviceID)
+
+	if !checkResult.Found {
+		if len(checkResult.Artifacts) == 0 {
+			c.JSON(http.StatusOK, gin.H{"update_available": false, "error": "Not found"})
+		} else {
+			logrus.Debugln("checkResult in FindLatestVersion: ", checkResult)
+			response := gin.H{"update_available": false, "critical": checkResult.Critical, "possible_rollback": checkResult.PossibleRollback}
+			// Add artifact URLs to response
+			artifactUrls := BuildArtifactUrls(checkResult.Artifacts, validatedParams["platform"].(string), validatedParams["arch"].(string))
+			for key, url := range artifactUrls {
+				response[key] = url
+			}
+
+			if changelog := BuildChangelogResponse(checkResult.Changelog); changelog != "" {
+				response["changelog"] = changelog
+			}
+			response, httpStatus = updaters.BuildResponse(response, checkResult.Found, checkResult.PossibleRollback, checkResult.LatestVersion, validatedParams["updater"].(string))
+			squirrelBody, isSquirrelFeed := maybeSquirrelReleasesFeed(c, validatedParams, response, httpStatus)
+			if isSquirrelFeed {
+				httpStatus = http.StatusOK
+			}
+			if checkResult.CdnEdge {
+				logrus.Debugf("Publishing response to CDN when not found: %v", response)
+				publishResponseToCDN(ctx, rdb, cdnEpoch, validatedParams, response)
+			}
+			if useCache {
+				if isSquirrelFeed {
+					cacheResponse(ctx, rdb, cacheKey, squirrelBody, httpStatus, squirrelReleasesContentType, checkResult.Found)
+				} else {
+					cacheResponse(ctx, rdb, cacheKey, response, httpStatus, "", checkResult.Found)
+				}
+			}
+
+			if isSquirrelFeed {
+				c.Data(httpStatus, squirrelReleasesContentType, []byte(squirrelBody))
+				return
+			}
+			if httpStatus == 302 {
+				if redirectURL, exists := response["url"]; exists {
+					c.Redirect(http.StatusFound, redirectURL.(string))
+					return
+				}
+			}
+			c.JSON(httpStatus, response)
+		}
+		return
+	}
+	logrus.Debug("Check latest version response: ", checkResult)
+	response := gin.H{"update_available": true, "critical": checkResult.Critical}
+
+	// Add is_intermediate_required to response if it's true
+	if checkResult.IsRequiredIntermediate {
+		response["is_intermediate_required"] = true
+	}
+
+	// Add update URLs to the response
+	artifactUrls := BuildArtifactUrls(checkResult.Artifacts, validatedParams["platform"].(string), validatedParams["arch"].(string))
+	for key, url := range artifactUrls {
+		logrus.Debugf("Adding link for key %s: %s", key, url)
+		response[key] = url
+	}
+	// Add changelog to the response last
+	if changelog := BuildChangelogResponse(checkResult.Changelog); changelog != "" {
+		response["changelog"] = changelog
+	}
+	response, httpStatus = updaters.BuildResponse(response, checkResult.Found, checkResult.PossibleRollback, checkResult.LatestVersion, validatedParams["updater"].(string))
+	if checkResult.RolloutPercent < 100 {
+		response["rollout"] = gin.H{"percent": checkResult.RolloutPercent, "seed": checkResult.RolloutSeed}
+	}
+	squirrelBody, isSquirrelFeed := maybeSquirrelReleasesFeed(c, validatedParams, response, httpStatus)
+	if isSquirrelFeed {
+		httpStatus = http.StatusOK
+	}
+	if checkResult.CdnEdge {
+		logrus.Debugf("Publishing response to CDN when found: %v", response)
+		publishResponseToCDN(ctx, rdb, cdnEpoch, validatedParams, response)
+	}
+	if useCache {
+		if isSquirrelFeed {
+			cacheResponse(ctx, rdb, cacheKey, squirrelBody, httpStatus, squirrelReleasesContentType, checkResult.Found)
+		} else {
+			cacheResponse(ctx, rdb, cacheKey, response, httpStatus, "", checkResult.Found)
+		}
+	}
+	if isSquirrelFeed {
+		c.Data(httpStatus, squirrelReleasesContentType, []byte(squirrelBody))
+		return
+	}
+	if httpStatus == 302 {
+		if redirectURL, exists := response["url"]; exists {
+			c.Redirect(http.StatusFound, redirectURL.(string))
+			return
+		}
+	}
+
+	c.JSON(httpStatus, response)
+}
+
+func FetchLatestVersionOfApp(c *gin.Context, repository db.AppRepository, rdb *redis.Client, performanceMode bool) {
+	if c.Query("app_name") == "" || c.Query("channel") == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Parameters 'app_name' and 'channel' are required",
+		})
+		return
+	}
+	params := map[string]interface{}{
+		"app_name": c.Query("app_name"),
+		"channel":  c.Query("channel"),
+		"platform": c.Query("platform"),
+		"arch":     c.Query("arch"),
+		"package":  c.Query("package"),
+		"owner":    c.Query("owner"),
+	}
+	ctx, ctxErr := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer ctxErr()
+
+	access, allowed := authorizeReadRequest(ctx, c, repository, params, http.StatusInternalServerError)
+	if !allowed {
+		return
+	}
+
+	cacheKey := CreateCacheKey(params)
+	logrus.Debugf("Generated cache key: %s", cacheKey)
+
+	useCache := performanceMode && rdb != nil && !access.Private
+	if useCache {
+		cachedResponse, err := rdb.Get(ctx, cacheKey).Result()
+		if err == nil {
+			var cachedData CachedResponse
+			if json.Unmarshal([]byte(cachedResponse), &cachedData) == nil {
+				logrus.Debugln("Returning cached data: ", cachedData)
+
+				// Handle redirect for cached response
+				if cachedData.HTTPStatus == 302 {
+					if responseMap, ok := cachedData.Response.(map[string]interface{}); ok {
+						if redirectURL, exists := responseMap["url"]; exists {
+							c.Redirect(http.StatusFound, redirectURL.(string))
+							return
+						}
+					}
+				}
+
+				c.JSON(cachedData.HTTPStatus, cachedData.Response)
+				return
+			}
+		}
+	}
+
+	checkResult, err := repository.FetchLatestVersionOfApp(params["app_name"].(string), params["channel"].(string), ctx, params["owner"].(string))
+	if err != nil {
+		logrus.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	jsonData, err := json.MarshalIndent(checkResult, "", "  ")
+	if err != nil {
+		logrus.Errorf("Error marshaling checkResult: %v", err)
+	} else {
+		logrus.Debugf("Fetched latest version response: %s", string(jsonData))
+	}
+
+	downloadUrls := make(map[string]map[string]map[string]map[string]map[string]string)
+
+	if len(checkResult) > 0 {
+		latestApp := checkResult[0]
+		for _, artifact := range latestApp.Artifacts {
+
+			if params["channel"] != "" && params["channel"] != latestApp.Channel {
+				continue
+			}
+			if params["platform"] != "" && params["platform"] != artifact.Platform {
+				continue
+			}
+			if params["arch"] != "" && params["arch"] != artifact.Arch {
+				continue
+			}
+
+			packageType := strings.TrimPrefix(artifact.Package, ".")
+			if packageType == "" {
+				packageType = "no-extension"
+			}
+
+			if params["package"] != "" && params["package"] != packageType {
+				continue
+			}
+
+			if _, exists := downloadUrls[latestApp.Channel]; !exists {
+				downloadUrls[latestApp.Channel] = make(map[string]map[string]map[string]map[string]string)
+			}
+
+			if _, exists := downloadUrls[latestApp.Channel][artifact.Platform]; !exists {
+				downloadUrls[latestApp.Channel][artifact.Platform] = make(map[string]map[string]map[string]string)
+			}
+
+			if _, exists := downloadUrls[latestApp.Channel][artifact.Platform][artifact.Arch]; !exists {
+				downloadUrls[latestApp.Channel][artifact.Platform][artifact.Arch] = make(map[string]map[string]string)
+			}
+
+			downloadUrls[latestApp.Channel][artifact.Platform][artifact.Arch][packageType] = map[string]string{
+				"url": artifact.Link,
+			}
+		}
+	}
+
+	if len(downloadUrls) == 0 {
+		logrus.Warnf("No results found for parameters: %v", params)
+		c.JSON(http.StatusNotFound, gin.H{"error": "No matching data found for the provided parameters"})
+		return
+	}
+
+	urlCount, singleUrl := utils.CountUrls(downloadUrls)
+
+	if urlCount == 1 {
+		logrus.Debugf("Redirecting to the single download URL: %v", singleUrl)
+		c.Redirect(http.StatusFound, singleUrl)
+		return
+	}
+
+	logrus.Debugf("Generated download URLs: %v", downloadUrls)
+
+	c.JSON(http.StatusOK, downloadUrls)
+
+	if useCache {
+		cacheResponse(ctx, rdb, cacheKey, downloadUrls, http.StatusOK, "", false)
+	}
+}
+
+// trackClientTelemetry handles analytics collection for version check requests using Redis Sets
+func trackClientTelemetry(ctx context.Context, rdb *redis.Client, params map[string]interface{}, hasUpdate bool, deviceID string) {
+	trackClientTelemetryWithLatest(ctx, rdb, params, hasUpdate, true, deviceID)
+}
+
+func trackClientTelemetryWithLatest(ctx context.Context, rdb *redis.Client, params map[string]interface{}, hasUpdate bool, hasLatestState bool, deviceID string) {
+	if rdb == nil || deviceID == "" {
+		logrus.Debug("Redis client is not set or deviceID is empty, skipping analytics collection")
+		return
+	}
+
+	now := time.Now().UTC()
+	dateStr := now.Format("2006-01-02")
+
+	owner := params["owner"].(string)
+	appName := params["app_name"].(string)
+	version := params["version"].(string)
+	platform := params["platform"].(string)
+	arch := params["arch"].(string)
+	channel := params["channel"].(string)
+
+	logrus.Debugf("Collecting analytics for app: %s, owner: %s, date: %s", appName, owner, dateStr)
+
+	baseKey := fmt.Sprintf("stats:%s:%s", owner, appName)
+
+	requestsKey := fmt.Sprintf("%s:requests:%s", baseKey, dateStr)
+	rdb.Incr(ctx, requestsKey)
+	rdb.Expire(ctx, requestsKey, time.Hour*24*30)
+	logrus.Debugf("Telemetry Redis updated: incr=%s", requestsKey)
+
+	clientsKey := fmt.Sprintf("%s:unique_clients:%s", baseKey, dateStr)
+	rdb.SAdd(ctx, clientsKey, deviceID)
+	rdb.Expire(ctx, clientsKey, time.Hour*24*30)
+	logrus.Debugf("Telemetry Redis updated: sadd=%s member=%s", clientsKey, deviceID)
+
+	if channel != "" {
+		channelKey := fmt.Sprintf("%s:channels:%s:%s", baseKey, dateStr, channel)
+		rdb.SAdd(ctx, channelKey, deviceID)
+		rdb.Expire(ctx, channelKey, time.Hour*24*30)
+		logrus.Debugf("Telemetry Redis updated: sadd=%s member=%s", channelKey, deviceID)
+	}
+
+	if platform != "" {
+		platformKey := fmt.Sprintf("%s:platforms:%s:%s", baseKey, dateStr, platform)
+		rdb.SAdd(ctx, platformKey, deviceID)
+		rdb.Expire(ctx, platformKey, time.Hour*24*30)
+		logrus.Debugf("Telemetry Redis updated: sadd=%s member=%s", platformKey, deviceID)
+	}
+
+	if arch != "" {
+		archKey := fmt.Sprintf("%s:architectures:%s:%s", baseKey, dateStr, arch)
+		rdb.SAdd(ctx, archKey, deviceID)
+		rdb.Expire(ctx, archKey, time.Hour*24*30)
+		logrus.Debugf("Telemetry Redis updated: sadd=%s member=%s", archKey, deviceID)
+	}
+
+	if version != "" {
+		// Get known versions for this app
+		knownVersionsKey := fmt.Sprintf("%s:known_versions", baseKey)
+
+		// Add current version to known versions set
+		rdb.SAdd(ctx, knownVersionsKey, version)
+		rdb.Expire(ctx, knownVersionsKey, time.Hour*24*30)
+		logrus.Debugf("Telemetry Redis updated: sadd=%s member=%s", knownVersionsKey, version)
+
+		// Get all known versions
+		knownVersions, err := rdb.SMembers(ctx, knownVersionsKey).Result()
+		if err != nil {
+			logrus.Errorf("Error getting known versions: %v", err)
+			return
+		}
+
+		// Remove device from all version sets for this day
+		for _, knownVersion := range knownVersions {
+			if knownVersion != version {
+				oldVersionKey := fmt.Sprintf("%s:version_usage:%s:%s", baseKey, dateStr, knownVersion)
+				rdb.SRem(ctx, oldVersionKey, deviceID)
+				rdb.Expire(ctx, oldVersionKey, time.Hour*24*30)
+				logrus.Debugf("Telemetry Redis updated: srem=%s member=%s", oldVersionKey, deviceID)
+			}
+		}
+
+		// Add device to current version set
+		versionKey := fmt.Sprintf("%s:version_usage:%s:%s", baseKey, dateStr, version)
+		rdb.SAdd(ctx, versionKey, deviceID)
+		rdb.Expire(ctx, versionKey, time.Hour*24*30)
+		logrus.Debugf("Telemetry Redis updated: sadd=%s member=%s", versionKey, deviceID)
+
+	}
+
+	// Track if client is using latest version
+	if !hasLatestState {
+		logrus.Debug("Telemetry latest/outdated Redis updates skipped because latest state is unknown")
+	} else if hasUpdate {
+		// Remove from latest version set if present
+		latestVersionKey := fmt.Sprintf("%s:clients_using_latest_version:%s", baseKey, dateStr)
+		rdb.SRem(ctx, latestVersionKey, deviceID)
+		rdb.Expire(ctx, latestVersionKey, time.Hour*24*30)
+		logrus.Debugf("Telemetry Redis updated: srem=%s member=%s", latestVersionKey, deviceID)
+
+		// Add to outdated set
+		outdatedKey := fmt.Sprintf("%s:clients_outdated:%s", baseKey, dateStr)
+		rdb.SAdd(ctx, outdatedKey, deviceID)
+		rdb.Expire(ctx, outdatedKey, time.Hour*24*30)
+		logrus.Debugf("Telemetry Redis updated: sadd=%s member=%s", outdatedKey, deviceID)
+	} else {
+		// Remove from outdated set if present
+		outdatedKey := fmt.Sprintf("%s:clients_outdated:%s", baseKey, dateStr)
+		rdb.SRem(ctx, outdatedKey, deviceID)
+		rdb.Expire(ctx, outdatedKey, time.Hour*24*30)
+		logrus.Debugf("Telemetry Redis updated: srem=%s member=%s", outdatedKey, deviceID)
+
+		// Add to latest version set
+		latestVersionKey := fmt.Sprintf("%s:clients_using_latest_version:%s", baseKey, dateStr)
+		rdb.SAdd(ctx, latestVersionKey, deviceID)
+		rdb.Expire(ctx, latestVersionKey, time.Hour*24*30)
+		logrus.Debugf("Telemetry Redis updated: sadd=%s member=%s", latestVersionKey, deviceID)
+	}
+}
+
+func logStatsToRedis(ctx context.Context, rdb *redis.Client, params map[string]interface{}, hasUpdate bool, deviceID string) {
+	if !viper.GetBool("ENABLE_TELEMETRY") {
+		return
+	}
+	trackClientTelemetry(ctx, rdb, params, hasUpdate, deviceID)
+}

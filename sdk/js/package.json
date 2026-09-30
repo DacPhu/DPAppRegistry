@@ -1,0 +1,51 @@
+{
+  "name": "@dacphu/dpappregistry-sdk",
+  "version": "0.1.0",
+  "description": "JavaScript/TypeScript SDK for DPAppRegistry",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DacPhu/DPAppRegistry.git",
+    "directory": "sdk/js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./electron": {
+      "types": "./dist/electron.d.ts",
+      "default": "./dist/electron.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "electron": [
+        "dist/electron.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "tsc --project tsconfig.test.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.17.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.0",
+    "typescript": "^5.7.0"
+  },
+  "license": "Apache-2.0"
+}

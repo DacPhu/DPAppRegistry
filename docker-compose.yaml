@@ -1,0 +1,48 @@
+
+networks:
+  dpappregistry_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.25.0.0/16"
+
+services:
+
+  backend:
+    extends:
+      file: ./docker-compose/services/backend.yml
+      service: backend
+
+  s3:
+    extends:
+      file: ./docker-compose/services/s3.yml
+      service: s3
+
+  webui:
+    extends:
+      file: ./docker-compose/services/s3.yml
+      service: webui
+
+  db:
+    extends:
+      file: ./docker-compose/services/db.yml
+      service: db
+
+  cache:
+    extends:
+      file: ./docker-compose/services/redis.yml
+      service: cache
+
+  frontend:
+    extends:
+      file: ./docker-compose/services/frontend.yml
+      service: frontend
+
+volumes:
+  data:
+  data-s3:
+  garage_meta:
+  garage_data:
+  cache:
+    driver: local

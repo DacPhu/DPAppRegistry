@@ -1,0 +1,426 @@
+package create
+
+import (
+	"context"
+	"errors"
+	db "github.com/DacPhu/DPAppRegistry/mongod"
+	"github.com/DacPhu/DPAppRegistry/server/handler/info"
+	"github.com/DacPhu/DPAppRegistry/server/model"
+	"github.com/DacPhu/DPAppRegistry/server/utils"
+	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
+	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/sparkle"
+	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/velopack"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+func isVelopackFeedName(fileName string) bool {
+	name := strings.ToLower(fileName)
+	return strings.HasPrefix(name, "releases.") && strings.HasSuffix(name, ".json")
+}
+
+func isSparkleAppcastName(fileName string) bool {
+	name := strings.ToLower(fileName)
+	return strings.HasPrefix(name, "appcast") && strings.HasSuffix(name, ".xml")
+}
+
+func ParseVelopackFeed(files []*multipart.FileHeader) (map[string]velopack.VelopackMeta, error) {
+	for _, file := range files {
+		if isVelopackFeedName(file.Filename) {
+			f, err := file.Open()
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+			content, err := io.ReadAll(f)
+			if err != nil {
+				return nil, err
+			}
+			return velopack.ParseFeed(content)
+		}
+	}
+	return nil, fmt.Errorf("velopack updater requires a releases.*.json feed file")
+}
+
+func ParseSparkleAppcast(files []*multipart.FileHeader) (map[string]sparkle.SparkleMeta, error) {
+	for _, file := range files {
+		if isSparkleAppcastName(file.Filename) {
+			f, err := file.Open()
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+			content, err := io.ReadAll(f)
+			if err != nil {
+				return nil, err
+			}
+			return sparkle.ParseAppcast(content)
+		}
+	}
+	return nil, fmt.Errorf("sparkle updater requires an appcast.*.xml feed file")
+}
+
+func ValidateUpdaterUpload(ctxQueryMap map[string]interface{}, updaterType string, fileNames []string, feedFiles []*multipart.FileHeader) error {
+	if updaterType == "" {
+		return nil
+	}
+
+	// Validate files for updaters that require specific file types
+	if err := updaters.ValidateFiles(fileNames, updaterType); err != nil {
+		return err
+	}
+
+	// Validate parameters for updaters that require specific parameters
+	if err := updaters.ValidateParams(ctxQueryMap, updaterType); err != nil {
+		return err
+	}
+
+	// Ingest velopack metadata from the releases.*.json feed (verbatim hashes)
+	if updaterType == velopack.UpdaterType {
+		velopackMeta, err := ParseVelopackFeed(feedFiles)
+		if err != nil {
+			return err
+		}
+		ctxQueryMap["velopack_meta"] = velopackMeta
+	}
+
+	// Ingest sparkle metadata from the appcast.*.xml feed (verbatim edSignature)
+	if updaterType == sparkle.UpdaterType {
+		sparkleMeta, err := ParseSparkleAppcast(feedFiles)
+		if err != nil {
+			return err
+		}
+		if err := sparkle.ValidateArchivesInAppcast(fileNames, sparkleMeta); err != nil {
+			return err
+		}
+		ctxQueryMap["sparkle_meta"] = sparkleMeta
+	}
+
+	return nil
+}
+
+// FileNames reduces an upload to the names the placement and validation steps need,
+// so those steps stay usable by a flow that never holds the files themselves.
+func FileNames(files []*multipart.FileHeader) []string {
+	names := make([]string, 0, len(files))
+	for _, file := range files {
+		names = append(names, file.Filename)
+	}
+	return names
+}
+
+// CopyVelopackInstallersToDefault materializes the flat, fixed-name installer
+// so the persisted artifact link points at the per-version installers/ object
+// while the default name keeps pointing at the newest upload. It self-gates on
+// the velopack updater, since only that path routes installers to versioned keys.
+func CopyVelopackInstallersToDefault(ctx context.Context, ctxQuery map[string]interface{}, owner string, fileNames []string, checkAppVisibility bool, env *viper.Viper) {
+	if updater, _ := ctxQuery["updater"].(string); updater != velopack.UpdaterType {
+		return
+	}
+
+	hasInstaller := false
+	for _, fileName := range fileNames {
+		if velopack.IsInstallerFile(fileName) {
+			hasInstaller = true
+			break
+		}
+	}
+	if !hasInstaller {
+		return
+	}
+
+	factory := utils.NewStorageFactory(env)
+	storageClient, err := factory.CreateStorageClient()
+	if err != nil {
+		logrus.Errorf("Failed to create storage client for velopack installer copy: %v", err)
+		return
+	}
+
+	bucketName := env.GetString("S3_BUCKET_NAME")
+	public := true
+	if checkAppVisibility {
+		bucketName = env.GetString("S3_BUCKET_NAME_PRIVATE")
+		public = false
+	}
+
+	for _, fileName := range fileNames {
+		if !velopack.IsInstallerFile(fileName) {
+			continue
+		}
+		srcKey := velopack.InstallerVersionedKey(ctxQuery, owner, fileName)
+		dstKey := velopack.InstallerDefaultKey(ctxQuery, owner, fileName)
+		if err := storageClient.CopyObject(ctx, bucketName, srcKey, dstKey, public); err != nil {
+			logrus.Errorf("Failed to copy velopack installer %s -> %s: %v", srcKey, dstKey, err)
+			continue
+		}
+		logrus.Debugf("Materialized default velopack installer: %s/%s", bucketName, dstKey)
+	}
+}
+
+func InvalidateCache(ctx context.Context, params map[string]interface{}, rdb *redis.Client) error {
+
+	owner, _ := params["owner"].(string)
+	appName, _ := params["app_name"].(string)
+	channel, _ := params["channel"].(string)
+
+	pattern := info.CacheKeyPattern(owner, appName, channel)
+	logrus.Debugf("Redis pattern %s will be invalidated.", pattern)
+
+	var keys []string
+	iter := rdb.Scan(ctx, 0, pattern, 1000).Iterator()
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("failed to fetch keys for invalidation: %w", err)
+	}
+
+	if len(keys) == 0 {
+		logrus.Debug("No keys found to invalidate.")
+		return nil
+	}
+
+	for _, key := range keys {
+		logrus.Debugf("Invalidating key: %s", key)
+		if err := rdb.Del(ctx, key).Err(); err != nil {
+			logrus.Errorf("Failed to invalidate key: %s, error: %v", key, err)
+		}
+	}
+
+	return nil
+}
+
+func IsCdnEdgeEnabled(ctx context.Context, database *mongo.Database, owner, appName string) (bool, error) {
+	var appMeta struct {
+		CdnEdge bool `bson:"cdn_edge"`
+	}
+
+	err := database.Collection("apps_meta").FindOne(ctx, bson.M{
+		"app_name": appName,
+		"owner":    owner,
+	}).Decode(&appMeta)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check cdn_edge flag: %w", err)
+	}
+
+	return appMeta.CdnEdge, nil
+}
+
+func InvalidateCDNResponseCache(ctx context.Context, owner, appName string, rdb *redis.Client, env *viper.Viper) error {
+	bucketName := env.GetString("S3_BUCKET_NAME_CDN")
+	if bucketName == "" {
+		logrus.Debug("S3_BUCKET_NAME_CDN is not configured, skipping CDN response invalidation")
+		return nil
+	}
+
+	// Bumped before the sweep, so a publish that is already in flight or that races the list/delete below is
+	// dropped instead of recreating an object this sweep removes.
+	info.BumpCDNEpoch(ctx, rdb, owner, appName)
+
+	factory := utils.NewStorageFactory(env)
+	storageClient, err := factory.CreateStorageClient()
+	if err != nil {
+		return fmt.Errorf("failed to create storage client for CDN response invalidation: %w", err)
+	}
+
+	prefix := fmt.Sprintf("responses/%s/%s/", owner, appName)
+	logrus.Debugf("CDN response prefix %s will be invalidated.", prefix)
+
+	objectKeys, err := storageClient.ListObjects(ctx, bucketName, prefix)
+	if err != nil {
+		return fmt.Errorf("failed to list CDN response objects for invalidation: %w", err)
+	}
+
+	if len(objectKeys) == 0 {
+		logrus.Debug("No CDN response objects found to invalidate.")
+		return nil
+	}
+
+	logrus.Debugf("Invalidating %d CDN response objects by prefix.", len(objectKeys))
+	if err := storageClient.DeleteObjects(ctx, bucketName, objectKeys); err != nil {
+		return fmt.Errorf("failed to invalidate CDN response objects: %w", err)
+	}
+
+	return nil
+}
+
+func explicitPublishValue(params map[string]interface{}) (string, bool) {
+	publishValue, hasPublishValue := params["publish"].(string)
+	publishValue = strings.TrimSpace(strings.ToLower(publishValue))
+	return publishValue, hasPublishValue && (publishValue == "true" || publishValue == "false")
+}
+
+func InvalidatePublishCaches(
+	ctx context.Context,
+	params map[string]interface{},
+	database *mongo.Database,
+	rdb *redis.Client,
+	performanceMode bool,
+	owner string,
+	appName string,
+	env *viper.Viper,
+	logPrefix string,
+) {
+	publishValue, hasExplicitPublish := explicitPublishValue(params)
+
+	logrus.Debugf("%s publish=%q (explicit=%t), invalidation check for caches.", logPrefix, publishValue, hasExplicitPublish)
+	if !hasExplicitPublish {
+		return
+	}
+
+	channel, _ := params["channel"].(string)
+	InvalidateAppCaches(ctx, database, rdb, performanceMode, owner, appName, []string{channel}, env)
+}
+
+func InvalidateAppCaches(
+	ctx context.Context,
+	database *mongo.Database,
+	rdb *redis.Client,
+	performanceMode bool,
+	owner string,
+	appName string,
+	channels []string,
+	env *viper.Viper,
+) {
+	if performanceMode && rdb != nil {
+		for _, channel := range channels {
+			params := map[string]interface{}{"owner": owner, "app_name": appName, "channel": channel}
+			if err := InvalidateCache(ctx, params, rdb); err != nil {
+				logrus.Error("Error invalidating cache:", err)
+			}
+		}
+	}
+
+	isCdnEdgeEnabled, err := IsCdnEdgeEnabled(ctx, database, owner, appName)
+	if err != nil {
+		logrus.Error("Error checking cdn_edge flag:", err)
+		return
+	}
+	if isCdnEdgeEnabled {
+		if err := InvalidateCDNResponseCache(ctx, owner, appName, rdb, env); err != nil {
+			logrus.Error("Error invalidating CDN response cache:", err)
+		}
+	}
+}
+
+func UploadApp(c *gin.Context, repository db.AppRepository, db *mongo.Database, rdb *redis.Client, performanceMode bool) {
+	// Debug received request (make sense for using only on localhost)
+	// utils.DumpRequest(c)
+
+	uploadRequest, ok := ResolveUploadRequest(c, db)
+	if !ok {
+		return
+	}
+	owner, appName, ctxQueryMap := uploadRequest.Owner, uploadRequest.AppName, uploadRequest.Params
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "multipart form data is required",
+		})
+		return
+	}
+
+	files := form.File["file"] // Assuming the field name is "file" not "files"
+	fileNames := FileNames(files)
+
+	updaterType, _ := ctxQueryMap["updater"].(string)
+
+	if err := ValidateUpdaterUpload(ctxQueryMap, updaterType, fileNames, files); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	checkAppVisibility, ok := ResolveAppVisibility(c, db, appName, owner, ctxQueryMap)
+	if !ok {
+		return
+	}
+	var links []string
+	var extensions []string
+	var fileHashes []map[string]string
+	var fileLengths []int64
+	for _, file := range files {
+		// Calculate hashes and length before uploading to S3
+		hashes, length, err := utils.CalculateFileHashes(file)
+		if err != nil {
+			logrus.Error(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate file hashes"})
+			return
+		}
+		fileHashes = append(fileHashes, hashes)
+		fileLengths = append(fileLengths, length)
+
+		link, ext, err := utils.UploadToS3(ctxQueryMap, owner, file, c, viper.GetViper(), checkAppVisibility)
+		if err != nil {
+			logrus.Error(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload file to S3"})
+			return
+		}
+		links = append(links, link)
+		extensions = append(extensions, ext)
+	}
+	var results []interface{}
+	for i, link := range links {
+		// Add hashes and length to ctxQueryMap for this specific file
+		fileCtxQuery := make(map[string]interface{})
+		for k, v := range ctxQueryMap {
+			fileCtxQuery[k] = v
+		}
+		fileCtxQuery["hashes"] = fileHashes[i]
+		fileCtxQuery["length"] = fileLengths[i]
+		fileCtxQuery["hashes_verified"] = true
+		fileCtxQuery["is_feed"] = updaters.IsFeedFile(files[i].Filename, updaterType)
+		if _, ok := ctxQueryMap["velopack_meta"]; ok {
+			fileCtxQuery["file_name"] = files[i].Filename
+		}
+		if _, ok := ctxQueryMap["sparkle_meta"]; ok {
+			fileCtxQuery["file_name"] = files[i].Filename
+		}
+
+		result, err := repository.Upload(fileCtxQuery, link, extensions[i], uploadRequest.Username, c.Request.Context(), rdb, viper.GetViper(), checkAppVisibility)
+		if err != nil {
+			logrus.Error(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		results = append(results, result)
+	}
+
+	FinalizeUpload(
+		c.Request.Context(),
+		db,
+		rdb,
+		performanceMode,
+		ctxQueryMap,
+		owner,
+		appName,
+		fileNames,
+		checkAppVisibility,
+		viper.GetViper(),
+	)
+
+	if len(results) == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "no results found. Please check your files."})
+		return
+	}
+
+	if appData, ok := results[0].(model.SpecificApp); ok {
+		c.JSON(http.StatusOK, gin.H{"uploadResult.Uploaded": appData.ID.Hex()})
+
+		NotifySlackForApp(repository, appData.ID, owner, rdb, viper.GetViper())
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid result type"})
+	}
+}

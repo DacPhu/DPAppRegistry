@@ -1,0 +1,199 @@
+package server
+
+import (
+	db "github.com/DacPhu/DPAppRegistry/mongod"
+	"github.com/DacPhu/DPAppRegistry/redisdb"
+	"github.com/DacPhu/DPAppRegistry/server/handler"
+	"github.com/DacPhu/DPAppRegistry/server/tuf"
+	"github.com/DacPhu/DPAppRegistry/server/utils"
+	"os"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+)
+
+func StartServer(config *viper.Viper) {
+	mongoUrl := config.GetString("MONGODB_URL")
+
+	router := gin.Default()
+	if trustedProxies := config.GetString("TRUSTED_PROXIES"); trustedProxies != "" {
+		proxies := strings.Split(trustedProxies, ",")
+		for i := range proxies {
+			proxies[i] = strings.TrimSpace(proxies[i])
+		}
+		if err := router.SetTrustedProxies(proxies); err != nil {
+			logrus.Fatalf("Invalid TRUSTED_PROXIES: %v", err)
+		}
+	}
+
+	client, configDB := db.ConnectToDatabase(mongoUrl)
+
+	db := db.NewAppRepository(&configDB, client)
+
+	mongoDatabase := client.Database(configDB.Database)
+
+	logrus.Infoln("Redis connection is required. Connecting to Redis.")
+	redisConfig := redisdb.RedisConfig{
+		Addr:     config.GetString("REDIS_HOST") + ":" + config.GetString("REDIS_PORT"),
+		Password: config.GetString("REDIS_PASSWORD"),
+		DB:       config.GetInt("REDIS_DB"),
+	}
+	redisClient := redisdb.ConnectToRedis(redisConfig)
+
+	handler := handler.NewAppHandler(client, db, mongoDatabase, redisClient, config.GetBool("PERFORMANCE_MODE"))
+	os.Setenv("API_KEY", config.GetString("API_KEY"))
+	// Add authentication middleware to required paths
+	authMiddleware := utils.AuthMiddleware(mongoDatabase)
+
+	router.GET("/health", handler.HealthCheck)
+
+	allowedCORS := config.GetString("ALLOWED_CORS")
+	allowedOrigins := strings.Split(allowedCORS, ",")
+
+	router.Use(corsMiddleware(allowedOrigins))
+
+	// Add squirrel_windows updater compatibility
+	router.GET("/update/:owner/:app/:channel/:platform/:arch/:version/RELEASES", handler.SquirrelReleases)
+
+	// Velopack dynamic feed
+	router.GET("/velopack/:owner/:app/:platform/:arch/*feed", handler.FindVelopackFeed)
+
+	router.GET("/checkVersion", handler.FindLatestVersion)
+	router.GET("/apps/latest", handler.FetchLatestVersionOfApp)
+	router.GET("/telemetry/beacon", telemetryMiddleware(config), handler.TelemetryBeacon)
+	if config.GetString("API_KEY") != "" {
+		router.POST("/signup", handler.SignUp)
+	} else {
+		logrus.Warnln("API_KEY is not set, /signup is disabled")
+	}
+	router.POST("/login", handler.Login)
+
+	if config.GetBool("REPORTS_ENABLED") {
+		router.POST("/reports/ingest", handler.IngestReport)
+	}
+
+	// Access to private artifacts is decided per app inside the handler, so the route stays outside authMiddleware.
+	router.GET("/download", handler.DownloadArtifact)
+	router.Use(authMiddleware)
+
+	// App routes
+	// router.GET("/", handler.GetAllApps)
+	router.GET("/whoami", handler.Whoami)
+	router.POST("/upload", utils.CheckPermission(utils.PermissionUpload, utils.ResourceApps, mongoDatabase), handler.UploadApp)
+	router.POST("/upload/init", utils.CheckPermission(utils.PermissionUpload, utils.ResourceApps, mongoDatabase), handler.InitPresignedUpload)
+	router.POST("/upload/complete", utils.CheckPermission(utils.PermissionUpload, utils.ResourceApps, mongoDatabase), handler.CompletePresignedUpload)
+	router.POST("/apps/update", utils.CheckPermission(utils.PermissionEdit, utils.ResourceApps, mongoDatabase), handler.UpdateSpecificApp)
+	router.POST("/app/update", utils.CheckPermission(utils.PermissionEdit, utils.ResourceApps, mongoDatabase), handler.UpdateApp)
+	router.DELETE("/apps/delete", utils.CheckPermission(utils.PermissionDelete, utils.ResourceApps, mongoDatabase), handler.DeleteSpecificVersionOfApp)
+	router.GET("/search", handler.GetAppByName)
+
+	// Channel routes
+	router.POST("/channel/create", utils.CheckPermission(utils.PermissionCreate, utils.ResourceChannels, mongoDatabase), handler.CreateChannel)
+	router.GET("/channel/list", handler.ListChannels)
+	router.DELETE("/channel/delete", utils.CheckPermission(utils.PermissionDelete, utils.ResourceChannels, mongoDatabase), handler.DeleteChannel)
+	router.POST("/channel/update", utils.CheckPermission(utils.PermissionEdit, utils.ResourceChannels, mongoDatabase), handler.UpdateChannel)
+
+	// Platform routes
+	router.POST("/platform/create", utils.CheckPermission(utils.PermissionCreate, utils.ResourcePlatforms, mongoDatabase), handler.CreatePlatform)
+	router.GET("/platform/list", handler.ListPlatforms)
+	router.DELETE("/platform/delete", utils.CheckPermission(utils.PermissionDelete, utils.ResourcePlatforms, mongoDatabase), handler.DeletePlatform)
+	router.POST("/platform/update", utils.CheckPermission(utils.PermissionEdit, utils.ResourcePlatforms, mongoDatabase), handler.UpdatePlatform)
+
+	// Arch routes
+	router.POST("/arch/create", utils.CheckPermission(utils.PermissionCreate, utils.ResourceArchs, mongoDatabase), handler.CreateArch)
+	router.GET("/arch/list", handler.ListArchs)
+	router.DELETE("/arch/delete", utils.CheckPermission(utils.PermissionDelete, utils.ResourceArchs, mongoDatabase), handler.DeleteArch)
+	router.POST("/arch/update", utils.CheckPermission(utils.PermissionEdit, utils.ResourceArchs, mongoDatabase), handler.UpdateArch)
+
+	// App management routes
+	router.POST("/app/create", utils.CheckPermission(utils.PermissionCreate, utils.ResourceApps, mongoDatabase), handler.CreateApp)
+	router.GET("/app/list", handler.ListApps)
+	router.DELETE("/app/delete", utils.CheckPermission(utils.PermissionDelete, utils.ResourceApps, mongoDatabase), handler.DeleteApp)
+	router.POST("/artifact/delete", utils.CheckPermission(utils.PermissionDelete, utils.ResourceApps, mongoDatabase), handler.DeleteSpecificArtifactOfApp)
+
+	// Team user management - only admins can create team users
+	router.POST("/user/create", authMiddleware, utils.AdminOnlyMiddleware(mongoDatabase), handler.CreateTeamUser)
+	router.POST("/user/update", authMiddleware, utils.AdminOnlyMiddleware(mongoDatabase), handler.UpdateTeamUser)
+	router.GET("/users/list", authMiddleware, utils.AdminOnlyMiddleware(mongoDatabase), handler.ListTeamUsers)
+	router.DELETE("/user/delete", authMiddleware, utils.AdminOnlyMiddleware(mongoDatabase), handler.DeleteTeamUser)
+	router.POST("/admin/update", authMiddleware, utils.AdminOnlyMiddleware(mongoDatabase), handler.UpdateAdmin)
+
+	// Telemetry endpoint
+	router.GET("/telemetry", authMiddleware, telemetryMiddleware(config), handler.GetTelemetry)
+
+	// Token routes
+	router.POST("/token/create", authMiddleware, utils.AdminOnlyMiddleware(mongoDatabase), handler.CreateToken)
+	router.GET("/token/list", authMiddleware, utils.AdminOnlyMiddleware(mongoDatabase), handler.ListTokens)
+	router.DELETE("/token/delete", authMiddleware, utils.AdminOnlyMiddleware(mongoDatabase), handler.DeleteToken)
+
+	// Reports routes
+	router.GET("/report-keys/list", utils.CheckPermission(utils.PermissionEdit, utils.ResourceApps, mongoDatabase), handler.ListReportKeys)
+	router.POST("/report-keys/regenerate", utils.CheckPermission(utils.PermissionEdit, utils.ResourceApps, mongoDatabase), handler.RegenerateReportKey)
+
+	// Download token routes
+	router.GET("/download-tokens/list", utils.CheckPermission(utils.PermissionEdit, utils.ResourceApps, mongoDatabase), handler.ListDownloadTokens)
+	router.POST("/download-tokens/regenerate", utils.CheckPermission(utils.PermissionEdit, utils.ResourceApps, mongoDatabase), handler.RegenerateDownloadToken)
+
+	// Reports read API (admin + team users scoped to their allowed apps)
+	if config.GetBool("REPORTS_ENABLED") {
+		router.GET("/reports/groups", utils.CheckPermission(utils.PermissionDownload, utils.ResourceApps, mongoDatabase), handler.ListReportGroups)
+		router.GET("/reports/groups/:groupHash/blobs", utils.CheckPermission(utils.PermissionDownload, utils.ResourceApps, mongoDatabase), handler.ListReportGroupBlobs)
+		router.PATCH("/reports/groups/:groupHash", utils.CheckPermission(utils.PermissionEdit, utils.ResourceApps, mongoDatabase), handler.UpdateReportGroup)
+		router.DELETE("/reports/groups/:groupHash", utils.CheckPermission(utils.PermissionDelete, utils.ResourceApps, mongoDatabase), handler.DeleteReportGroup)
+	}
+
+	// TUF routes
+	if config.GetBool("TUF_ENABLED") {
+		tuf.SetupRoutes(router, authMiddleware, mongoDatabase, redisClient, db)
+	}
+
+	// get the port from the configuration file
+	port := config.GetString("PORT")
+	if port == "" {
+		port = "9000"
+	}
+	router.Run(":" + port)
+}
+
+func corsMiddleware(allowedOrigins []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
+
+		allowed := false
+		for _, allowedOrigin := range allowedOrigins {
+			if allowedOrigin == origin {
+				allowed = true
+				break
+			}
+		}
+
+		if allowed {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Download-Token, accept, origin, Cache-Control, X-Requested-With")
+			c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+		}
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func telemetryMiddleware(config *viper.Viper) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !config.GetBool("ENABLE_TELEMETRY") {
+			c.JSON(403, gin.H{
+				"error": "Telemetry is not enabled on this instance",
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}

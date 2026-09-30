@@ -1,0 +1,232 @@
+package mongod
+
+import (
+	"context"
+	"time"
+
+	"github.com/DacPhu/DPAppRegistry/server/model"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/spf13/viper"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+)
+
+type AppRepository interface {
+	Get(ctx context.Context, limit int64, owner string) ([]*model.SpecificAppWithoutIDs, error)
+	GetAppByName(appName string, ctx context.Context, page, limit int64, owner string, filters map[string]interface{}) (*model.PaginatedResponse, error)
+	FetchVersionsByIDs(ids []primitive.ObjectID, owner string, ctx context.Context) ([]*model.SpecificAppWithoutIDs, error)
+	FetchVersionOwners(ids []primitive.ObjectID, ctx context.Context) (map[primitive.ObjectID]string, error)
+	DeleteVersionsByIDs(ids []primitive.ObjectID, owner string, ctx context.Context) (int64, error)
+	DeleteChannel(id primitive.ObjectID, owner string, ctx context.Context) (int64, error)
+	Upload(ctxQuery map[string]interface{}, appLink, extension string, owner string, ctx context.Context, redisClient *redis.Client, env *viper.Viper, checkAppVisibility bool) (interface{}, error)
+	UpdateSpecificApp(objID primitive.ObjectID, owner string, ctxQuery map[string]interface{}, appLink, extension string, ctx context.Context) (bool, bool, bool, error)
+	CheckLatestVersion(appName, version, channel, platform, arch string, ctx context.Context, owner string) (CheckResult, error)
+	RequiredIntermediateStep(ctx context.Context, owner, appName, channel, platform, arch, currentVersion, latestVersion string) (string, error)
+	FetchLatestVersionOfApp(appName, channel string, ctx context.Context, owner string) ([]*model.SpecificAppWithoutIDs, error)
+	FetchAppByID(appID primitive.ObjectID, ctx context.Context) ([]*model.SpecificAppWithoutIDs, error)
+	CreateChannel(channelName string, owner string, ctx context.Context) (interface{}, error)
+	ListChannels(ctx context.Context, owner string) ([]*model.Channel, error)
+	CreatePlatform(platformName string, updaters []model.Updater, owner string, ctx context.Context) (interface{}, error)
+	ListPlatforms(ctx context.Context, owner string) ([]*model.Platform, error)
+	DeletePlatform(id primitive.ObjectID, owner string, ctx context.Context) (int64, error)
+	CreateArch(archName string, owner string, ctx context.Context) (interface{}, error)
+	ListArchs(ctx context.Context, owner string) ([]*model.Arch, error)
+	DeleteArch(id primitive.ObjectID, owner string, ctx context.Context) (int64, error)
+	CreateApp(appName string, logo string, description string, private bool, downloadMode string, tuf bool, reports bool, cdnEdge bool, owner string, ctx context.Context) (interface{}, error)
+	ListApps(ctx context.Context, owner string) ([]*model.App, error)
+	DeleteApp(id primitive.ObjectID, owner string, ctx context.Context) (int64, error)
+	UpdateApp(id primitive.ObjectID, appName string, logo string, tuf bool, description string, reports bool, cdnEdge bool, downloadMode string, owner string, ctx context.Context) (interface{}, error)
+	UpdateChannel(id primitive.ObjectID, paramValue string, owner string, ctx context.Context) (interface{}, error)
+	UpdatePlatform(id primitive.ObjectID, platformName string, updaters []model.Updater, owner string, ctx context.Context) (interface{}, error)
+	UpdateArch(id primitive.ObjectID, paramValue string, owner string, ctx context.Context) (interface{}, error)
+	DeleteSpecificArtifactOfApp(id primitive.ObjectID, ctxQuery map[string]interface{}, ctx context.Context, owner string) ([]string, bool, error)
+	GetAppByID(id primitive.ObjectID, requester string, ctx context.Context) (*model.App, error)
+	CreateReportKey(appID primitive.ObjectID, requester string, ctx context.Context) (string, error)
+	DeleteReportKey(appID primitive.ObjectID, requester string, ctx context.Context) (bool, error)
+	ListReportKeys(requester string, ctx context.Context) ([]*model.ReportKeyListItem, error)
+	RegenerateReportKey(appID primitive.ObjectID, requester string, ctx context.Context) (string, error)
+	ResolveAppAccess(ctx context.Context, owner, appName, channelName string) (*model.AppAccess, error)
+	FindPrivateArtifact(ctx context.Context, key string) (*model.PrivateArtifact, error)
+	CanDownloadPrivateArtifact(ctx context.Context, username string, artifact *model.PrivateArtifact) (bool, error)
+	HasDownloadToken(ctx context.Context, token string, artifact *model.PrivateArtifact) (bool, error)
+	RegenerateDownloadToken(appID, channelID primitive.ObjectID, requester string, ctx context.Context) (string, error)
+	ListDownloadTokens(requester string, ctx context.Context) ([]*model.DownloadTokenListItem, error)
+	GetReportContextByKey(ctx context.Context, keyValue string) (*model.ReportContext, error)
+	IncrementReportGroup(ctx context.Context, appID primitive.ObjectID, owner, hash string, app model.ReportApplication, system model.ReportSystem, event model.ReportEvent, now time.Time) error
+	IncrementReportGroupDetails(ctx context.Context, appID primitive.ObjectID, hash string, storedDelta, rejectedDelta int, now time.Time) error
+	InsertReportBlob(ctx context.Context, blob model.ReportBlob) error
+	FindExcessReportBlobs(ctx context.Context, appID primitive.ObjectID, hash string, keepN int64) ([]model.ReportBlob, error)
+	DeleteReportBlobsByIDs(ctx context.Context, ids []primitive.ObjectID) (int64, error)
+	GetReportGroups(ctx context.Context, requester string, filters map[string]string, page, limit int64) (*model.PaginatedReportGroups, error)
+	GetReportBlobsByGroupHash(ctx context.Context, requester, groupHash string, limit int64) ([]*model.ReportBlob, error)
+	UpdateReportGroup(ctx context.Context, requester, groupHash string, status *string, tags *[]string, note *string, resolvedBy string, now time.Time) (bool, error)
+	DeleteReportGroup(ctx context.Context, requester, groupHash string) (bool, []string, error)
+}
+
+type appRepository struct {
+	client *mongo.Client
+	config *connstring.ConnString
+}
+
+// Meta lookups are decoded into per-call variables of these types; package-level
+// variables would be shared by concurrent requests.
+type appMetaDoc struct {
+	ID      primitive.ObjectID `bson:"_id"`
+	AppName string             `bson:"app_name"`
+	Tuf     bool               `bson:"tuf,omitempty"`
+}
+
+type metaIDDoc struct {
+	ID primitive.ObjectID `bson:"_id"`
+}
+
+func NewAppRepository(config *connstring.ConnString, client *mongo.Client) AppRepository {
+	return &appRepository{config: config, client: client}
+}
+
+type Artifact struct {
+	Link      string
+	Package   string
+	Signature string
+}
+type Changelog struct {
+	Changes string
+}
+type CheckResult struct {
+	Found                  bool
+	Critical               bool
+	CdnEdge                bool
+	Artifacts              []Artifact
+	Changelog              []Changelog
+	IsRequiredIntermediate bool
+	PossibleRollback       bool
+	LatestVersion          string
+	Signature              string
+	RolloutPercent         int
+	RolloutSeed            string
+}
+
+func (c *appRepository) getBasePipeline() mongo.Pipeline {
+	return mongo.Pipeline{
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "apps_meta",
+			"localField":   "app_id",
+			"foreignField": "_id",
+			"as":           "app_meta",
+		}}},
+		bson.D{{Key: "$unwind", Value: "$app_meta"}},
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "apps_meta",
+			"localField":   "channel_id",
+			"foreignField": "_id",
+			"as":           "channel_meta",
+		}}},
+		bson.D{{Key: "$unwind", Value: bson.M{"path": "$channel_meta", "preserveNullAndEmptyArrays": true}}},
+		bson.D{{Key: "$unwind", Value: bson.M{"path": "$artifacts", "preserveNullAndEmptyArrays": true}}},
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "apps_meta",
+			"localField":   "artifacts.platform",
+			"foreignField": "_id",
+			"as":           "platform_meta",
+		}}},
+		bson.D{{Key: "$lookup", Value: bson.M{
+			"from":         "apps_meta",
+			"localField":   "artifacts.arch",
+			"foreignField": "_id",
+			"as":           "arch_meta",
+		}}},
+		bson.D{{Key: "$unwind", Value: bson.M{"path": "$platform_meta", "preserveNullAndEmptyArrays": true}}},
+		bson.D{{Key: "$unwind", Value: bson.M{"path": "$arch_meta", "preserveNullAndEmptyArrays": true}}},
+		bson.D{{Key: "$addFields", Value: bson.M{
+			"artifacts.platform": "$platform_meta.platform_name",
+			"artifacts.arch":     "$arch_meta.arch_id",
+		}}},
+		bson.D{{Key: "$group", Value: bson.M{
+			"_id":                   "$_id",
+			"app_name":              bson.M{"$first": "$app_meta.app_name"},
+			"channel":               bson.M{"$first": "$channel_meta.channel_name"},
+			"version":               bson.M{"$first": "$version"},
+			"published":             bson.M{"$first": "$published"},
+			"critical":              bson.M{"$first": "$critical"},
+			"required_intermediate": bson.M{"$first": "$required_intermediate"},
+			"artifacts":             bson.M{"$push": "$artifacts"},
+			"changelog":             bson.M{"$first": "$changelog"},
+			"updated_at":            bson.M{"$first": "$updated_at"},
+			"rollout_percent":       bson.M{"$first": "$rollout_percent"},
+		}}},
+		bson.D{{Key: "$addFields", Value: bson.D{
+			{Key: "versions_arr", Value: bson.D{
+				{Key: "$split", Value: bson.A{"$version", "."}},
+			}},
+		}}},
+		bson.D{{Key: "$addFields", Value: bson.D{
+			{Key: "major_v", Value: bson.D{
+				{Key: "$toInt", Value: bson.D{
+					{Key: "$arrayElemAt", Value: bson.A{"$versions_arr", 0}},
+				}},
+			}},
+			{Key: "minor_v", Value: bson.D{
+				{Key: "$toInt", Value: bson.D{
+					{Key: "$arrayElemAt", Value: bson.A{"$versions_arr", 1}},
+				}},
+			}},
+			{Key: "patch_v", Value: bson.D{
+				{Key: "$toInt", Value: bson.D{
+					{Key: "$arrayElemAt", Value: bson.A{"$versions_arr", 2}},
+				}},
+			}},
+			{Key: "build_v", Value: bson.D{
+				{Key: "$toInt", Value: bson.D{
+					{Key: "$arrayElemAt", Value: bson.A{"$versions_arr", 3}},
+				}},
+			}},
+		}}},
+		bson.D{{Key: "$sort", Value: bson.D{
+			{Key: "major_v", Value: -1},
+			{Key: "minor_v", Value: -1},
+			{Key: "patch_v", Value: -1},
+			{Key: "build_v", Value: -1},
+		}}},
+	}
+}
+func (c *appRepository) sortVersionPipeline() mongo.Pipeline {
+	return mongo.Pipeline{
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "versions_arr", Value: bson.D{
+				{Key: "$split", Value: bson.A{"$version", "."}},
+			}},
+		}}},
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "major_v", Value: bson.D{
+				{Key: "$toInt", Value: bson.D{
+					{Key: "$arrayElemAt", Value: bson.A{"$versions_arr", 0}},
+				}},
+			}},
+			{Key: "minor_v", Value: bson.D{
+				{Key: "$toInt", Value: bson.D{
+					{Key: "$arrayElemAt", Value: bson.A{"$versions_arr", 1}},
+				}},
+			}},
+			{Key: "patch_v", Value: bson.D{
+				{Key: "$toInt", Value: bson.D{
+					{Key: "$arrayElemAt", Value: bson.A{"$versions_arr", 2}},
+				}},
+			}},
+			{Key: "build_v", Value: bson.D{
+				{Key: "$toInt", Value: bson.D{
+					{Key: "$arrayElemAt", Value: bson.A{"$versions_arr", 3}},
+				}},
+			}},
+		}}},
+		{{Key: "$sort", Value: bson.D{
+			{Key: "major_v", Value: -1},
+			{Key: "minor_v", Value: -1},
+			{Key: "patch_v", Value: -1},
+			{Key: "build_v", Value: -1},
+		}}},
+		{{Key: "$limit", Value: 1}},
+	}
+}

@@ -1,0 +1,382 @@
+# DPAppRegistry
+
+DPAppRegistry is derived from [faynoSync](https://github.com/ku9nov/faynoSync) by ku9nov, used under the Apache License 2.0 — see [NOTICE](NOTICE). Links below marked *upstream* point to faynoSync's own repositories and documentation.
+
+---
+
+**Self-hosted update server for desktop apps — your release pipeline, fully under your control.**
+
+### ⚡ Quickstart (<5 min)
+
+Spin up the API with MongoDB, Redis, and a preconfigured S3-compatible storage (Garage) — no cloud account required:
+
+```bash
+cd DPAppRegistry
+docker compose up --build                                   # API + MongoDB + Redis + Garage + Dashboard
+docker compose exec -T backend /usr/bin/DPAppRegistry migrate up # run after the stack is healthy
+```
+
+The API is now live at `http://localhost:9000`. Check for an update from any client:
+
+```bash
+curl "http://localhost:9000/checkVersion?app_name=myapp&version=0.0.1&owner=admin"
+```
+
+Upload builds and manage versions via the bundled [faynoSync-dashboard](https://github.com/ku9nov/faynoSync-dashboard) (upstream) at `http://localhost:3000` or the [REST API](https://github.com/ku9nov/faynoSync/blob/main/dev-notes/API.md). Full setup, env vars, and self-build instructions are below.
+
+---
+
+### 🧩 SDKs
+
+Apps check for updates through the SDKs in [`sdk/`](sdk), which change together with this API:
+
+| Package | For | Desktop helper |
+|---|---|---|
+| [`sdk/go`](sdk/go): `github.com/DacPhu/DPAppRegistry/sdk/go/appregistry` | Go apps | [`desktopupdate`](sdk/go/desktopupdate): scheduled and on-demand checks, a prompt, and the download (Wails, Fyne, …) |
+| [`sdk/js`](sdk/js): `@dacphu/dpappregistry-sdk` | Node.js and Electron | [`/electron`](sdk/js#electron-apps): hands the electron-builder feed to electron-updater, or opens the download |
+
+The server's end-to-end suite runs against `sdk/go`, so an API change that breaks the Go SDK fails here first. Release the Go SDK by tagging `sdk/go/vX.Y.Z` (it is a nested module) and the JS SDK with `npm publish` from `sdk/js`.
+
+---
+
+## 📖 Overview
+
+DPAppRegistry is a self-hosted, open-source API server for managing and updating cross-platform desktop applications (Windows, macOS, Linux).
+It enables automatic and on-demand updates for client software, making it easy to deliver new versions to users through a customizable update workflow.
+
+The server allows developers to upload application builds to S3, set version metadata, and expose a simple REST API for clients to check for updates.
+When a client queries the API, it receives version information and a download URL if an update is available.
+
+DPAppRegistry supports both background updates and manual update prompts, depending on how the client integrates with the API. This gives developers full control over how and when updates are delivered to end-users.
+
+It’s ideal for managing updates in Electron apps, native desktop applications, or any cross-platform software where you want full control over versioning, distribution, and update channels (e.g. stable, beta, nightly).
+
+![demo](https://github.com/user-attachments/assets/7071cfb6-8293-4069-a0c1-b8fda70d431f)
+
+---
+
+## 🛠️ Supported Technologies
+
+| Category | Technology | Description |
+|----------|------------|-------------|
+| **API Framework** | Go (Golang) | Main application server built with Go |
+| **Database** | MongoDB | Primary database for storing application metadata, users, and configurations |
+| **Cache & Performance** | Redis | Required. Caching, statistics, TUF task state, rate limits |
+| **Updaters** | electron-builder | Update feeds for Electron apps (auto-generated `latest*.yml` / `latest-mac.yml`) |
+| | Tauri | Updater for Tauri apps (signature-based verification) |
+| | Squirrel | Update support for Squirrel.Windows and Squirrel.Mac |
+| | Velopack | Cross-platform installer/updater framework |
+| | Sparkle | macOS-only installer/updater framework |
+| | Manual | Direct download without a framework-specific update feed |
+| **Storage** | S3-Compatible | Supports multiple cloud storage providers: |
+| | AWS S3 | Amazon Web Services Simple Storage Service |
+| | Garage | Recommended local S3-compatible storage, used via the AWS SDK |
+| | MinIO | Deprecated local S3-compatible storage option that still works but is no longer maintained |
+| | Google Cloud Storage | Google Cloud Platform storage service |
+| | DigitalOcean Spaces | DigitalOcean's S3-compatible object storage |
+
+---
+
+### 📖 Documentation Links
+- **Repository**: [faynoSync-site](https://github.com/ku9nov/faynoSync-site) (upstream) - Source code for documentation
+- **Live Documentation**: [faynoSync documentation](https://ku9nov.github.io/faynoSync-site/docs/intro) (upstream) - Online documentation
+
+---
+
+### 🖥️ Frontend Links
+- **Dashboard Repository**: [faynoSync-dashboard](https://github.com/ku9nov/faynoSync-dashboard) (upstream) - Web-based management interface
+
+---
+
+## 📱 Client Application Examples
+
+You can find examples of client applications [here](examples/).
+
+### 🔗 Example Links
+- **Examples Directory**: [Client Application Examples](examples/) - Various client implementations
+
+### 📋 API Usage Template
+
+- **Postman Collection**: [DPAppRegistry.postman_collection.json](examples/DPAppRegistry.postman_collection.json) - Ready-to-use API requests
+- **API Documentation**: [API.md](https://github.com/ku9nov/faynoSync/blob/main/API.md) (upstream) - Complete API reference
+
+---
+
+## 🚀 Installation
+
+To use this application, you will need to have Golang installed on your machine. You can install it from the official [website](https://golang.org/doc/install).
+
+### 📥 Installation Steps
+
+1. **Install Go**: Download and install from [golang.org](https://golang.org/doc/install)
+
+2. **Clone Repository**: Once you have installed Golang, clone this repository to your local machine:
+
+```bash
+git clone https://github.com/ku9nov/faynoSync.git
+```
+
+---
+
+## ⚙️ Configuration
+
+To configure the `DPAppRegistry`, you will need to set the following environment variables:
+
+### 🔧 Required Environment Variables
+
+```bash
+# Storage Configuration
+STORAGE_DRIVER (`minio`, `aws`, `gcp` or `digitalocean`)
+S3_ACCESS_KEY (Your AWS or S3-compatible access key ID.)
+S3_SECRET_KEY (Your AWS or S3-compatible secret access key.)
+S3_REGION (The AWS region in which your S3 bucket is located. For local Garage use `garage`.)
+S3_REGION_PRIVATE (Optional. Region of the private bucket when it differs from `S3_REGION`. Leave empty when both buckets share one region. For DigitalOcean Spaces `S3_ENDPOINT_PRIVATE` must point at the endpoint of that same region, e.g. `S3_REGION_PRIVATE=fra1` with `S3_ENDPOINT_PRIVATE=fra1.digitaloceanspaces.com`.)
+MINIO_SECURE (Deprecated MinIO-only setting. Set to `true` to use HTTPS with MinIO or `false` to use HTTP. Default: `false`)
+S3_BUCKET_NAME_PRIVATE (The name of your private S3 bucket.)
+S3_ENDPOINT_PRIVATE (Public/private bucket URL used by the application when storing links or resolving keys)
+S3_BUCKET_NAME (The name of your public S3 bucket. Artifacts will be uploaded here by default.)
+S3_BUCKET_NAME_CDN (Optional CDN bucket for artifacts uploaded with `cdn=true`. You can reuse `S3_BUCKET_NAME` or provide a dedicated bucket.)
+S3_ENDPOINT (The public bucket URL used for public artifact links. Artifacts will be uploaded here by default.)
+S3_API_ENDPOINT (Optional custom S3 API endpoint for S3-compatible providers such as local Garage. Leave empty for managed AWS S3.)
+S3_FORCE_PATH_STYLE (Optional. Set to `true` for providers that require path-style requests, such as local Garage.)
+S3_DISABLE_OBJECT_ACL (Optional. Set to `true` for providers that do not support `public-read` object ACLs, such as local Garage.)
+PRESIGNED_UPLOAD_URL_TTL (Optional. Lifetime of presigned upload URLs, for example `2h`. Default: `30m`, max: `168h`.)
+
+# Server Configuration
+ALLOWED_CORS (urls to allow CORS configuration)
+PORT (The port on which the auto updater service will listen. Default: 9000)
+
+# Database Configuration
+MONGODB_URL=mongodb://root:MheCk6sSKB1m4xKNw5I@127.0.0.1/cb_dpappregistry_db?authSource=admin (see docker-compose file)
+MONGODB_URL_TESTS (MongoDB connection string used for tests that require a MongoDB instance. Optional.)
+
+# Security Configuration
+API_KEY (generated by 'openssl rand -base64 16') Used for SignUp
+API_URL=(public URL to this API)
+JWT_SECRET (Secret used to sign and validate JWT tokens. Generate with 'openssl rand -base64 32' or similar.)
+TRUSTED_PROXIES (Comma-separated IPs/CIDRs of reverse proxies allowed to pass the client IP via `X-Forwarded-For` / `X-Real-IP`, used by the `/login` and `/signup` per-IP rate limits. Unset trusts every proxy, so clients can spoof their IP. Set it to your proxy addresses, or to `127.0.0.1` when the API is exposed directly. An invalid value stops the server on startup.)
+
+# Performance Configuration
+PERFORMANCE_MODE (Set to `true` to enable performance mode)
+
+# Deletion Configuration
+MAX_BULK_DELETE_VERSIONS (Maximum number of version ids accepted by one `DELETE /apps/delete` request, default: `10`)
+
+# Redis Configuration
+REDIS_HOST (The hostname for the Redis server, default: `localhost`)
+REDIS_PORT (The port for the Redis server, default: `6379`)
+REDIS_PASSWORD (Password for Redis, leave empty if not set)
+REDIS_DB (The Redis database number to use, default: `0`)
+
+# Slack Configuration
+SLACK_ENABLE (Set to `true` to enable Slack notifications, `false` to disable.)
+SLACK_BOT_TOKEN (Slack bot token used to send notifications. Required when Slack is enabled.)
+SLACK_CHANNEL (Slack channel identifier where notifications will be sent.)
+SLACK_NOTIFICATION_TTL (How long Slack notifications are considered valid, for example `24h`.)
+
+# Feature Flags
+ENABLE_PRIVATE_APP_DOWNLOADING=false (deprecated: only picks the default `download_mode` for newly created private apps — `true` selects `unlisted` (anyone holding the link key can download), `false` selects `strict` (a download token, or the JWT of the owning admin / a team user with the `download` permission). Apps that already store a `download_mode` keep it; the one-time migration used this value to backfill private apps created before `download_mode` existed)
+ENABLE_TELEMETRY (Set to `true` to enable telemetry)
+
+# TUF Configuration
+TUF_ENABLED=true (Set to `true` to enable TUF (The Update Framework) functionality. This enables secure software update management with metadata signing, artifact publishing, and root key rotation capabilities)
+ONLINE_KEY_DIR=/private_keys (Directory path where online signing keys are stored. These keys are used for online metadata signing operations in TUF)
+
+# Reports Configuration
+REPORTS_ENABLED (Set to `true` to enable the crash/event reporting API, `false` to disable.)
+REPORTS_MAX_BODY_BYTES (Maximum size in bytes of an ingest request body, default: `262144`)
+REPORTS_MAX_DETAILS_COMPRESSED_BYTES (Maximum size in bytes of a compressed detail blob, default: `131072`)
+REPORTS_MAX_DETAILS_DECOMPRESSED_BYTES (Maximum size in bytes of a detail blob after decompression, default: `1048576`)
+REPORTS_BLOB_RETENTION_DAYS (Retention applied per blob at insert time, not by the Mongo TTL index, default: `30`)
+REPORTS_MAX_BLOBS_PER_GROUP (Maximum number of detail blobs kept per report group, default: `10`)
+REPORTS_STORAGE_PREFIX (Key prefix for report blobs in the private S3 bucket, default: `reports`)
+REPORTS_RATE_LIMIT_PER_KEY_PER_MINUTE (Per-API-key ingest rate limit; per-group 30/min and per-device+group 1/hour are fixed, default: `100`)
+```
+
+### 📝 Environment File Setup
+
+You can set these environment variables in a `.env` file in the root directory of the application. You can use the `.env.local` file, which contains all filled variables.
+
+### 🧪 Recommended Local Storage Setup
+
+For local development, the recommended setup is Garage with the `aws` storage driver. Garage is used as an S3-compatible backend, while uploads and downloads go through the AWS SDK.
+
+When you use the provided Docker Compose setup, these credentials are imported automatically into Garage during container bootstrap.
+
+Garage admin UI is available at `http://localhost:3909/` (user: `admin`, password: `BjjctVsoSg4FKkT81VKt18`).
+
+The DPAppRegistry-dashboard is available at `http://localhost:3000/`. It talks to the API through the `VITE_API_URL` variable set in `docker-compose/services/frontend.yml` (defaults to `http://localhost:9000`).
+
+```bash
+STORAGE_DRIVER=aws
+MINIO_SECURE=false
+S3_ACCESS_KEY=GK8fcbbed327a9ff97f250eb4e
+S3_SECRET_KEY=8a59fe92499699d139fcee6998343dad2ac73fb2b5dffafa0a7d0b0d4e305db9
+S3_BUCKET_NAME_PRIVATE=cb-dpappregistry-s3-private
+S3_BUCKET_NAME=cb-dpappregistry-s3-public
+S3_BUCKET_NAME_CDN=cb-dpappregistry-s3-public
+S3_ENDPOINT_PRIVATE=http://cb-dpappregistry-s3-private.web.garage.localhost:3902
+S3_ENDPOINT=http://cb-dpappregistry-s3-public.web.garage.localhost:3902
+S3_API_ENDPOINT=http://127.0.0.1:3900
+S3_FORCE_PATH_STYLE=true
+S3_DISABLE_OBJECT_ACL=true
+S3_REGION=garage
+```
+
+### ⚠️ MinIO Status
+
+MinIO is now considered deprecated in this project. Existing MinIO-based setups should continue to work, but new local deployments should use Garage through the `aws` storage driver instead.
+
+---
+
+## 🐳 Docker Configuration
+
+To build and run the API with all dependencies, you can use the following command:
+
+```bash
+docker compose up --build
+```
+
+### 📦 Running Migrations
+
+You can run migrations using this command after `docker compose up --build` finishes:
+
+```bash
+docker compose exec -T backend /usr/bin/DPAppRegistry migrate up
+```
+
+### 🧪 Running Tests
+
+You can now run tests using this command after `docker compose up --build` finishes and the storage service becomes healthy:
+
+```bash
+docker exec -it DPAppRegistry_backend "/usr/bin/DPAppRegistry_tests"
+```
+
+### 🔧 Development Setup
+
+If you only want to run dependency services (for local development without Docker), use this command:
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.development.yaml up
+```
+
+The `docker-compose.development.yaml` override scales the `backend` and `frontend` services to `0` replicas, so you can run the API and dashboard from source while MongoDB, Redis, and Garage stay containerized.
+
+---
+
+## 💻 Usage
+
+To use the auto updater service, follow these steps:
+
+### 🔨 Build the Application
+
+```bash
+go build -o DPAppRegistry DPAppRegistry.go
+```
+
+### 🚀 Start the Service
+
+1. **Start API Server**:
+```bash
+./DPAppRegistry
+```
+
+2. **Run Migrations** (after API health check):
+```bash
+./DPAppRegistry migrate up
+```
+
+3. **Rollback Migrations** (if needed):
+```bash
+./DPAppRegistry migrate down
+```
+
+### 📤 Upload Your Application
+
+3. Upload your application to S3 and set the version number in [faynoSync-dashboard](https://github.com/ku9nov/faynoSync-dashboard) (upstream) or using API.
+   For large builds, skip the reverse proxy and upload straight to storage with presigned URLs: `POST /upload/init` → `PUT` → `POST /upload/complete`, see [Presigned Uploads](https://faynosync.com/docs/presigned-uploads).
+
+### 🔍 Check for Updates
+
+4. In your client application, make a GET request to the auto updater service API, passing the current version number as a query parameter:
+
+```
+http://localhost:9000/checkVersion?app_name=myapp&version=0.0.1&owner=admin
+```
+
+### 📋 API Response
+
+The auto updater service will return a JSON response with the following structure:
+
+```json
+{
+    "update_available": false,
+    "update_url_deb": "http://localhost:9000/download?key=secondapp/myapp-0.0.1.deb",
+    "update_url_rpm": "http://localhost:9000/download?key=secondapp/myapp-0.0.1.rpm"
+}
+```
+
+If an update is available, the `update_available` field will be `true`, and the `update_url` field will contain a link to the updated application.
+
+### 🔔 User Notification
+
+5. In your client application, show an alert to the user indicating that an update is available and provide a link to download the updated application.
+
+---
+
+## 🧪 Testing
+
+### 🚀 Run End-to-End Tests
+
+```bash
+go test
+```
+
+### 🔨 Build Test Binary
+
+```bash
+go test -c -o DPAppRegistry_tests
+```
+
+### 🧪 Run Unit Tests (TUF functionality)
+
+```bash
+# Optional: set MONGODB_URL_TESTS for tests that require a MongoDB connection
+# export MONGODB_URL_TESTS=mongodb://root:MheCk6sSKB1m4xKNw5I@localhost/cb_dpappregistry_db_tests?authSource=admin
+go test ./server/tuf/...
+```
+
+### 📋 Test Requirements
+
+**Test Descriptions**
+
+To successfully run the tests and have them pass, you need to populate the `.env` file.
+
+The tests verify the implemented API using a test database and an existing S3 bucket.
+
+---
+
+## 🔄 Database Migrations
+
+### 📦 Install Migration Tool
+
+Install migrate tool [here](https://github.com/golang-migrate/migrate/blob/master/cmd/migrate/README.md).
+
+### 🆕 Create New Migrations
+
+```bash
+cd mongod/migrations
+migrate create -ext json name_of_migration
+```
+
+Then run migrations with the built-in command:
+
+```bash
+./DPAppRegistry migrate up
+```
+
+### 🔗 Migration Tool Link
+- **Migration Tool**: [golang-migrate](https://github.com/golang-migrate/migrate/blob/master/cmd/migrate/README.md) - Database migration utility
+
+---

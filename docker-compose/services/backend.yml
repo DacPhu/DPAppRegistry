@@ -1,0 +1,14 @@
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: "DPAppRegistry_backend"
+    networks:
+      dpappregistry_network:
+        ipv4_address: 172.25.0.6
+    ports:
+      - "9000:9000"
+    volumes:
+      -  ../envs/backend.env:/app/.env
+      - ../../tuf_keys/:/app/tuf_keys/

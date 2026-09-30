@@ -1,0 +1,16 @@
+services:
+  db:
+    image: mongo:7.0.12
+    container_name: "DPAppRegistry_db"
+    restart: always
+    volumes:
+      - data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=cb_dpappregistry_db
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=MheCk6sSKB1m4xKNw5I
+    ports:
+      - "27017:27017"
+    networks:
+      dpappregistry_network:
+        ipv4_address: 172.25.0.4
