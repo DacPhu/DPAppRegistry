@@ -70,9 +70,9 @@ Each downloadable package appears as `update_url_<extension>`. Without a newer v
 
 Apps normally check through the SDKs in [`sdk/`](sdk), which are versioned with this API:
 
-| Package | For | Desktop helper |
+| Package | For | Helpers |
 |---|---|---|
-| [`sdk/go`](sdk/go): `github.com/DacPhu/DPAppRegistry/sdk/go/appregistry` | Go apps | [`desktopupdate`](sdk/go/desktopupdate): scheduled and on-demand checks, a prompt, and the download, for Wails, Fyne and other toolkits |
+| [`sdk/go`](sdk/go): `github.com/DacPhu/DPAppRegistry/sdk/go/appregistry` | Go apps, services and tools | [`desktopupdate`](sdk/go/desktopupdate): scheduled and on-demand checks, a prompt, and the download, for Wails, Fyne and other toolkits. [`updatecheck`](sdk/go/updatecheck): the same checks for a service or command-line tool, reported to the program instead of prompted |
 | [`sdk/js`](sdk/js): `@dacphu/dpappregistry-sdk` | Node.js and Electron | [`/electron`](sdk/js#electron-apps): hands electron-builder feeds to electron-updater, or opens the download |
 
 The server's end-to-end suite runs against `sdk/go`, so an API change that breaks the Go SDK fails here first. Release the Go SDK by tagging `sdk/go/vX.Y.Z` (it is a nested module) and the JavaScript SDK with `npm publish` from `sdk/js`.

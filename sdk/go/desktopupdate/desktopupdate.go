@@ -12,7 +12,6 @@ package desktopupdate
 
 import (
 	"context"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -61,12 +60,9 @@ func DefaultPackages(platform string) []string {
 	return []string{"AppImage", "deb", "rpm", "gz", "zip"}
 }
 
-// release matches the versions DPAppRegistry accepts: numbers joined by dots
-// or dashes. A development build such as "dev" has nothing to compare.
-var release = regexp.MustCompile(`^[0-9]+([.-][0-9]+)*$`)
-
-// IsRelease reports whether version can be checked for updates.
-func IsRelease(version string) bool { return release.MatchString(version) }
+// IsRelease reports whether version can be checked for updates. A development
+// build such as "dev" has nothing to compare. See appregistry.IsRelease.
+func IsRelease(version string) bool { return appregistry.IsRelease(version) }
 
 // Checker runs checks for one app. Use New.
 type Checker struct {

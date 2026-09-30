@@ -2,7 +2,7 @@
 
 Production-oriented Go SDK for checking application updates with DPAppRegistry.
 
-This package is a small typed transport and developer experience layer. It does not implement update installation, platform normalization, metadata verification, caching, or business rules. For a desktop app's check-on-launch, prompt and download flow, see [`desktopupdate`](desktopupdate).
+This package is a small typed transport and developer experience layer. It does not implement update installation, platform normalization, metadata verification, caching, or business rules. For a desktop app's check-on-launch, prompt and download flow, see [`desktopupdate`](desktopupdate); for a service or command-line tool, [`updatecheck`](updatecheck).
 
 ## Desktop apps
 
@@ -41,6 +41,27 @@ updates.Start(ctx)
 ```
 
 Windows and Linux Wails dialogs only offer Yes/No buttons, which is why the prompts are phrased as questions.
+
+## Services and command-line tools
+
+`updatecheck` is for programs with no window to ask in. It checks on the same schedule (30 seconds after `Start`, then every 6 hours) and keeps what it found; the program decides how to tell its user. `Latest` returns the newer release from the last check, `Check` asks now, and `OnUpdate` hears about each new download once, or on every check when it is critical. It only reports: installing is left to the program, since replacing a running service depends on how it was installed.
+
+```go
+updates := updatecheck.New(updatecheck.Config{
+	Client:   appregistry.NewClient(appregistry.Config{BaseURL: "https://registry.example.com"}),
+	Check:    appregistry.CheckOptions{Owner: "admin", AppName: "my-service", Version: version, Channel: "stable", Platform: runtime.GOOS, Arch: runtime.GOARCH},
+	Packages: []string{"gz"}, // .tar.gz archives
+	OnUpdate: func(u updatecheck.Update) { log.Printf("update available: %s", u.URL) },
+})
+updates.Start(ctx)
+
+// Later, for a status page or a `version --check` command:
+if u := updates.Latest(); u != nil {
+	fmt.Println("Download:", u.URL)
+}
+```
+
+Development builds (`Check.Version` not a release, see `appregistry.IsRelease`) never check: `Start` does nothing and `Check` returns `ErrNotRelease`.
 
 ## Installation
 
