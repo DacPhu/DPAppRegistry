@@ -2,9 +2,9 @@ package info
 
 import (
 	"context"
+	"fmt"
 	"github.com/DacPhu/DPAppRegistry/server/model"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/velopack"
-	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

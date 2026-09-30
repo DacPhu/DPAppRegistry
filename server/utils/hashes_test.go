@@ -41,9 +41,9 @@ func TestCalculateFileHashes(t *testing.T) {
 	}{
 		{
 			name:       "artifact bytes",
-			content:    []byte("faynoSync artifact bytes"),
-			wantSHA256: "3eaed3676200e67ae9d444338ee6b20f0781967569da5016867dffe7ab480395",
-			wantSHA512: "6312201f1677115adbd5e57768005d0f43f5f8d39a10ac8425d081a3646f1735ac510cd3695184490690de6d572d22f36e4048d727ddf150adad6da8bb7ee27c",
+			content:    []byte("DPAppRegistry artifact bytes"),
+			wantSHA256: "79395a3331a9502dbd50f2b72d46b5eae8f22e48408765695101dae995e244ae",
+			wantSHA512: "277549efb8167e65e0d4d6cfb64d81111ea53372b372d0df9b4fb05a43b352ece8096655a7a3ce13798b898b6bda3ff94bc6607cff77c99f17365f02ea0e3777",
 		},
 		{
 			name:       "empty file",
@@ -75,7 +75,7 @@ func TestCalculateFileHashes(t *testing.T) {
 // Upload hashes the file and only then streams it to storage, so hashing must not
 // consume the upload's reader.
 func TestCalculateFileHashesLeavesFileReadable(t *testing.T) {
-	content := []byte("faynoSync artifact bytes")
+	content := []byte("DPAppRegistry artifact bytes")
 	file := uploadedFile(t, "MyApp-1.0.0.dmg", content)
 
 	first, firstLength, err := CalculateFileHashes(file)

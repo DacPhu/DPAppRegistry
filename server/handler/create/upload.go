@@ -3,6 +3,7 @@ package create
 import (
 	"context"
 	"errors"
+	"fmt"
 	db "github.com/DacPhu/DPAppRegistry/mongod"
 	"github.com/DacPhu/DPAppRegistry/server/handler/info"
 	"github.com/DacPhu/DPAppRegistry/server/model"
@@ -10,7 +11,6 @@ import (
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/sparkle"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/velopack"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"

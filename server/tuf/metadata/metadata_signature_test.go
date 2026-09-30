@@ -10,8 +10,8 @@ import (
 	"crypto/rsa"
 	"encoding/hex"
 	"encoding/json"
-	tuf_storage "github.com/DacPhu/DPAppRegistry/server/tuf/storage"
 	"fmt"
+	tuf_storage "github.com/DacPhu/DPAppRegistry/server/tuf/storage"
 	"testing"
 	"time"
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto"
 	"crypto/ed25519"
-	tuf_storage "github.com/DacPhu/DPAppRegistry/server/tuf/storage"
 	"fmt"
+	tuf_storage "github.com/DacPhu/DPAppRegistry/server/tuf/storage"
 	"testing"
 	"time"
 

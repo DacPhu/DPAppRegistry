@@ -3,10 +3,10 @@ package info
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	db "github.com/DacPhu/DPAppRegistry/mongod"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"

@@ -231,12 +231,12 @@ func TestBuildAppcastChangelogOverlay(t *testing.T) {
 }
 
 func TestBuildAppcastOverlaysPubDate(t *testing.T) {
-	faynoDate := "Fri, 24 Jul 2026 15:17:29 +0300"
-	r := []Release{{Version: "0.0.2", Published: true, PubDate: faynoDate,
+	pubDate := "Fri, 24 Jul 2026 15:17:29 +0300"
+	r := []Release{{Version: "0.0.2", Published: true, PubDate: pubDate,
 		Full: fullAsset("0.0.2", "2", "a.zip", `<pubDate>Mon, 01 Jan 2020 00:00:00 +0000</pubDate>`)}}
 	doc := parseOut(t, mustBuild(t, r))
 	pd := doc.FindElement("//item/pubDate")
-	if pd == nil || pd.Text() != faynoDate {
+	if pd == nil || pd.Text() != pubDate {
 		t.Errorf("pubDate not overlaid with DPAppRegistry date, got %q", textOf(pd))
 	}
 	if n := len(doc.FindElements("//item/pubDate")); n != 1 {

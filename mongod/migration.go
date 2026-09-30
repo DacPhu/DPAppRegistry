@@ -3,8 +3,8 @@ package mongod
 import (
 	"context"
 	"errors"
-	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"fmt"
+	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4"

@@ -2,11 +2,11 @@ package mongod
 
 import (
 	"context"
+	"fmt"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/sparkle"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/velopack"
-	"fmt"
 	"path"
 	"strings"
 

@@ -6,8 +6,8 @@ import (
 )
 
 func TestRenderNotesHTML_RendersMarkdown(t *testing.T) {
-	html := RenderNotesHTML("# Title\n\n- one\n- two\n\n[docs](https://faynosync.com)")
-	for _, want := range []string{"<h1>Title</h1>", "<li>one</li>", `href="https://faynosync.com"`} {
+	html := RenderNotesHTML("# Title\n\n- one\n- two\n\n[docs](https://example.com)")
+	for _, want := range []string{"<h1>Title</h1>", "<li>one</li>", `href="https://example.com"`} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("expected %q in output, got: %s", want, html)
 		}

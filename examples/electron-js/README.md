@@ -1,1 +1,0 @@
-A better and more polished example of an Electron app can be found [here](https://github.com/ku9nov/faynoSync-electron-example)

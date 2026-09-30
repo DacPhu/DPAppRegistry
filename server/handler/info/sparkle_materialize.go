@@ -5,10 +5,10 @@ import (
 	"context"
 	"crypto/md5"
 	"errors"
+	"fmt"
 	"github.com/DacPhu/DPAppRegistry/server/model"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/sparkle"
-	"fmt"
 	"strings"
 
 	"github.com/sirupsen/logrus"

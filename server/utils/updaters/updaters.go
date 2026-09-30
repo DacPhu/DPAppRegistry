@@ -1,9 +1,9 @@
 package updaters
 
 import (
+	"fmt"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/sparkle"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/velopack"
-	"fmt"
 	"net/url"
 	"strings"
 

@@ -2,10 +2,10 @@ package updaters
 
 import (
 	"errors"
+	"fmt"
 	"github.com/DacPhu/DPAppRegistry/server/model"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/sparkle"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/velopack"
-	"fmt"
 	"strings"
 )
 

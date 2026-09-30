@@ -1,17 +1,5 @@
 DPAppRegistry
-Derived from faynoSync (https://github.com/ku9nov/faynoSync),
-Copyright ku9nov and faynoSync contributors, licensed under the Apache
-License, Version 2.0 (see LICENSE).
 
-Changes from faynoSync: the project, Go module, binary, container, network,
-database and storage bucket names are renamed from faynoSync to
-DPAppRegistry. References to upstream resources (its repositories, Go SDK,
-dashboard image and documentation) keep their original names.
-
-SDKs (sdk/):
-- sdk/go/appregistry is derived from faynosync-sdk-go v0.4.0
-  (https://github.com/ku9nov/faynosync-sdk-go), Apache License 2.0.
-- sdk/js is derived from @faynosync/sdk-js 0.8.0
-  (https://github.com/ku9nov/faynosync-sdk-js), Apache License 2.0.
-Both are renamed for DPAppRegistry. sdk/go/desktopupdate and sdk/js/src/electron.ts
-are new.
+Derived from faynoSync (https://github.com/ku9nov/faynoSync) and its Go and
+JavaScript SDKs, licensed under the Apache License, Version 2.0 (see LICENSE).
+The files have been modified: renamed for DPAppRegistry and extended.

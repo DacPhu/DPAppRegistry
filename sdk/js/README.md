@@ -4,8 +4,6 @@ Production-oriented JavaScript/TypeScript SDK for checking application updates w
 
 This package is a small typed transport and developer experience layer. It does not implement update installation, platform normalization, metadata verification, caching, or business rules. For an Electron app's whole update flow, see [Electron apps](#electron-apps).
 
-Forked from [@faynosync/sdk-js](https://github.com/ku9nov/faynosync-sdk-js) 0.8.0 (Apache-2.0); see the repository's NOTICE.
-
 ## Electron apps
 
 `@dacphu/dpappregistry-sdk/electron` runs the update flow every Electron product shares. It checks 30 seconds after `start()` and every 6 hours after that, and `checkNow()` runs a check on demand. When a release carries an electron-builder feed (its `latest*.yml` package) and this install can replace itself (Windows, a Linux AppImage, or a Developer ID signed Mac), electron-updater downloads and installs it. Otherwise the platform's download opens in the browser. A declined update isn't offered again in the background unless it's marked critical.

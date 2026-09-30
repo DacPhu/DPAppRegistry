@@ -2,8 +2,8 @@ package bootstrap
 
 import (
 	"context"
-	"github.com/DacPhu/DPAppRegistry/server/tuf/models"
 	"fmt"
+	"github.com/DacPhu/DPAppRegistry/server/tuf/models"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"

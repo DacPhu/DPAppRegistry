@@ -2,9 +2,9 @@ package create
 
 import (
 	"errors"
+	"fmt"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

@@ -2,9 +2,9 @@ package info
 
 import (
 	"context"
+	"fmt"
 	"github.com/DacPhu/DPAppRegistry/server/model"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/sparkle"
-	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"

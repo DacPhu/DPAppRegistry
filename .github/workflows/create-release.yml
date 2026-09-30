@@ -6,7 +6,8 @@ on:
       - closed
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: ku9nov/faynosync
+  # Docker Hub image to publish; set the repository variable DOCKERHUB_IMAGE to change it.
+  IMAGE_NAME: ${{ vars.DOCKERHUB_IMAGE || 'dacphu/dpappregistry' }}
   
 jobs:
   create-release:

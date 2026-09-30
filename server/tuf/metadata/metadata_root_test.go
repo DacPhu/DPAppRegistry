@@ -3,9 +3,9 @@ package metadata
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	tuf_storage "github.com/DacPhu/DPAppRegistry/server/tuf/storage"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"

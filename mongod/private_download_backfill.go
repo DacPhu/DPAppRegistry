@@ -2,8 +2,8 @@ package mongod
 
 import (
 	"context"
-	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"fmt"
+	"github.com/DacPhu/DPAppRegistry/server/utils"
 
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"

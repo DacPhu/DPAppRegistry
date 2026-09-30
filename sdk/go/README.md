@@ -4,8 +4,6 @@ Production-oriented Go SDK for checking application updates with DPAppRegistry.
 
 This package is a small typed transport and developer experience layer. It does not implement update installation, platform normalization, metadata verification, caching, or business rules. For a desktop app's check-on-launch, prompt and download flow, see [`desktopupdate`](desktopupdate).
 
-Forked from [faynosync-sdk-go](https://github.com/ku9nov/faynosync-sdk-go) v0.4.0 (Apache-2.0); see the repository's NOTICE.
-
 ## Desktop apps
 
 `desktopupdate` runs a desktop app's update flow. It checks 30 seconds after `Start`, then every 6 hours; `CheckNow` runs a check on demand. It offers each new version through the app's own dialogs and opens the download the user accepts, preferring installers over archives. A declined download isn't offered again in the background unless it's marked critical. Development builds (a version such as `dev`) skip checks entirely.

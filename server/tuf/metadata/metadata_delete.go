@@ -2,11 +2,11 @@ package metadata
 
 import (
 	"context"
+	"fmt"
 	"github.com/DacPhu/DPAppRegistry/server/tuf/models"
 	"github.com/DacPhu/DPAppRegistry/server/tuf/tasks"
 	tuf_utils "github.com/DacPhu/DPAppRegistry/server/tuf/utils"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"

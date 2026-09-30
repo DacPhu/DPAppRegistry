@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"flag"
 	"github.com/DacPhu/DPAppRegistry/mongod"
 	"github.com/DacPhu/DPAppRegistry/server"
-	"flag"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	logLevel  string
+	logLevel string
 )
 
 func init() {
