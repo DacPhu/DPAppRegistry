@@ -61,6 +61,23 @@ func TestUpdateOpensThePreferredDownload(t *testing.T) {
 	}
 }
 
+func TestOfferNamesTheVersionTheServerGives(t *testing.T) {
+	srv, _ := registry(t, http.StatusOK, `{"update_available":true,"version":"1.3.0","update_url_zip":"https://r/tool.zip"}`)
+	ui := &fakeUI{}
+	checker(srv, "1.2.0", ui).CheckNow(context.Background())
+	if len(ui.asked) != 1 || ui.asked[0] != "Tool 1.3.0 is available" {
+		t.Fatalf("asked %q, want the offer to name 1.3.0", ui.asked)
+	}
+
+	// A server too old to say keeps the generic offer.
+	srv, _ = registry(t, http.StatusOK, available)
+	ui = &fakeUI{}
+	checker(srv, "1.2.0", ui).CheckNow(context.Background())
+	if len(ui.asked) != 1 || ui.asked[0] != "A new version of Tool is available" {
+		t.Fatalf("asked %q, want the generic offer", ui.asked)
+	}
+}
+
 func TestDeclinedUpdateIsNotOfferedAgainUnasked(t *testing.T) {
 	srv, _ := registry(t, http.StatusOK, available)
 	ui := &fakeUI{}

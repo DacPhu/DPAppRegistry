@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.0
+
+- `appregistry.UpdateResponse.Version`: the version of the release a response describes, from the server's new `version` field.
+- `updatecheck.Update.Version` carries it, and `desktopupdate` names it in its offer ("My App 1.3.0 is available").
+
 ## v0.2.0
 
 - `updatecheck`: update checks for services and command-line tools: scheduled and on-demand checks that report the newer release, leaving how to tell the user to the program.

@@ -128,6 +128,9 @@ func assertSDKMatchesScenario(t *testing.T, expected map[string]interface{}, act
 
 	require.Equal(t, expected["update_available"], actual.UpdateAvailable)
 	require.Equal(t, expected["critical"], actual.Critical)
+	if expectedVersion, ok := expected["version"]; ok {
+		require.Equal(t, expectedVersion, actual.Version)
+	}
 	if expectedIntermediate, ok := expected["is_intermediate_required"]; ok {
 		require.Equal(t, expectedIntermediate, actual.IsIntermediateRequired)
 	}
@@ -2703,6 +2706,7 @@ func TestCheckVersionWithUpdaters(t *testing.T) {
 			Version:     "0.0.1.135",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version":          "0.0.2.137",
 				"critical":         false,
 				"update_available": true,
 				"url":              fmt.Sprintf("%s/%s", s3Endpoint, "updaters-admin/nightly/macosSquirrel/universalArch/updaters-0.0.2.137.zip"),
@@ -6164,6 +6168,7 @@ func TestCheckVersion(t *testing.T) {
 			Version:     "0.0.1.137",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version": "0.0.1.137",
 				// "changelog":        "### Changelog\n",
 				"update_available":  false,
 				"critical":          false,
@@ -6183,6 +6188,7 @@ func TestCheckVersion(t *testing.T) {
 			Version:     "0.0.2.137",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version":           "0.0.2.137",
 				"update_available":  false,
 				"critical":          false,
 				"possible_rollback": false,
@@ -6201,6 +6207,7 @@ func TestCheckVersion(t *testing.T) {
 			Version:     "0.0.3.137",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version":           "0.0.2.137",
 				"critical":          true,
 				"possible_rollback": true,
 				"changelog":         "### Changelog\n",
@@ -6220,6 +6227,7 @@ func TestCheckVersion(t *testing.T) {
 			Version:     "0.0.4.137",
 			ChannelName: "stable",
 			ExpectedJSON: map[string]interface{}{
+				"version":           "0.0.4.137",
 				"update_available":  false,
 				"critical":          false,
 				"possible_rollback": false,
@@ -6238,6 +6246,7 @@ func TestCheckVersion(t *testing.T) {
 			Version:     "0.0.5.137",
 			ChannelName: "stable",
 			ExpectedJSON: map[string]interface{}{
+				"version":           "0.0.4.137",
 				"update_available":  false,
 				"critical":          true,
 				"possible_rollback": true,
@@ -6734,6 +6743,7 @@ func TestCheckVersionWithSameExtensionArtifactsAndDiffPlatformsArchs(t *testing.
 			Version:     "0.0.1.138",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version":          "0.0.2.138",
 				"update_available": true,
 				"critical":         false,
 				"update_url_dmg":   fmt.Sprintf("%s/%s%s", apiUrl, "download?key=", "testapp-admin%2Fnightly%2FuniversalPlatform%2FsecondArch%2Ftestapp-0.0.2.138.dmg"),
@@ -6750,6 +6760,7 @@ func TestCheckVersionWithSameExtensionArtifactsAndDiffPlatformsArchs(t *testing.
 			Version:     "0.0.1.138",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version":          "0.0.2.138",
 				"update_available": true,
 				"critical":         false,
 				"update_url_dmg":   fmt.Sprintf("%s/%s%s", apiUrl, "download?key=", "testapp-admin%2Fnightly%2FuniversalPlatform%2FuniversalArch%2Ftestapp-0.0.2.138.dmg"),
@@ -6766,6 +6777,7 @@ func TestCheckVersionWithSameExtensionArtifactsAndDiffPlatformsArchs(t *testing.
 			Version:     "0.0.3.138",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version":           "0.0.1.138",
 				"critical":          false,
 				"possible_rollback": true,
 				"update_available":  false,
@@ -6783,6 +6795,7 @@ func TestCheckVersionWithSameExtensionArtifactsAndDiffPlatformsArchs(t *testing.
 			Version:     "0.0.3.138",
 			ChannelName: "stable",
 			ExpectedJSON: map[string]interface{}{
+				"version":          "0.0.4.138",
 				"update_available": true,
 				"critical":         true,
 				"update_url_dmg":   fmt.Sprintf("%s/%s%s", apiUrl, "download?key=", "testapp-admin%2Fstable%2FuniversalPlatform%2FuniversalArch%2Ftestapp-0.0.4.138.dmg"),
@@ -6799,6 +6812,7 @@ func TestCheckVersionWithSameExtensionArtifactsAndDiffPlatformsArchs(t *testing.
 			Version:     "0.0.3.138",
 			ChannelName: "stable",
 			ExpectedJSON: map[string]interface{}{
+				"version":          "0.0.4.138",
 				"update_available": true,
 				"critical":         true,
 				"update_url_dmg":   fmt.Sprintf("%s/%s%s", apiUrl, "download?key=", "testapp-admin%2Fstable%2FsecondPlatform%2FuniversalArch%2Ftestapp-0.0.4.138.dmg"),
@@ -12058,6 +12072,7 @@ func TestCheckVersionWithIntermediate(t *testing.T) {
 			Version:     "0.0.6.135",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version": "0.0.7.137",
 				// "changelog":                "### Changelog\n",
 				"critical":                 false,
 				"is_intermediate_required": true,
@@ -12077,6 +12092,7 @@ func TestCheckVersionWithIntermediate(t *testing.T) {
 			Version:     "0.0.7.137",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version":                  "0.0.9.137",
 				"critical":                 true,
 				"is_intermediate_required": true,
 				"update_available":         true,
@@ -12095,6 +12111,7 @@ func TestCheckVersionWithIntermediate(t *testing.T) {
 			Version:     "0.0.8.136",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version":                  "0.0.9.137",
 				"critical":                 true,
 				"is_intermediate_required": true,
 				"update_available":         true,
@@ -12113,6 +12130,7 @@ func TestCheckVersionWithIntermediate(t *testing.T) {
 			Version:     "0.0.9.137",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version":          "0.0.10.138",
 				"critical":         false,
 				"update_available": true,
 				"update_url_dmg":   fmt.Sprintf("%s/%s%s", apiUrl, "download?key=", "newApp-admin%2Fnightly%2FsecondPlatform%2FsecondArch%2FnewApp-0.0.10.138.dmg"),
@@ -12130,6 +12148,7 @@ func TestCheckVersionWithIntermediate(t *testing.T) {
 			Version:     "0.0.10.138",
 			ChannelName: "nightly",
 			ExpectedJSON: map[string]interface{}{
+				"version":           "0.0.10.138",
 				"update_available":  false,
 				"critical":          false,
 				"possible_rollback": false,

@@ -173,6 +173,17 @@ func BuildChangelogResponse(changelog []db.Changelog) string {
 	return ""
 }
 
+// addReleaseVersion names the release a response describes: the update it
+// offers, or with no update the newest release, which possible_rollback
+// points back to. A client can then say which version it offers without
+// parsing a download link. Tauri's response carries the same value as its own
+// "version".
+func addReleaseVersion(response gin.H, version string) {
+	if version != "" {
+		response["version"] = version
+	}
+}
+
 // ignoredArtifactPackages lists packages that are derived by updaters themselves
 // (e.g. electron-builder fetches .blockmap based on the yml, Squirrel fetches
 // .nupkg from the RELEASES feed) and must not be returned.
@@ -296,6 +307,7 @@ func FindLatestVersion(c *gin.Context, repository db.AppRepository, db *mongo.Da
 			for key, url := range artifactUrls {
 				response[key] = url
 			}
+			addReleaseVersion(response, checkResult.LatestVersion)
 
 			if changelog := BuildChangelogResponse(checkResult.Changelog); changelog != "" {
 				response["changelog"] = changelog
@@ -345,6 +357,7 @@ func FindLatestVersion(c *gin.Context, repository db.AppRepository, db *mongo.Da
 		logrus.Debugf("Adding link for key %s: %s", key, url)
 		response[key] = url
 	}
+	addReleaseVersion(response, checkResult.LatestVersion)
 	// Add changelog to the response last
 	if changelog := BuildChangelogResponse(checkResult.Changelog); changelog != "" {
 		response["changelog"] = changelog

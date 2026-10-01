@@ -38,6 +38,13 @@ type UpdateResponse struct {
 	IsIntermediateRequired bool   `json:"is_intermediate_required,omitempty"`
 	PossibleRollback       bool   `json:"possible_rollback,omitempty"`
 
+	// Version is the version of the release the response describes: the update
+	// offered (the required intermediate when IsIntermediateRequired), or with
+	// no update the newest release, which PossibleRollback points back to. It is
+	// set whether or not UpdateAvailable is, so check that first. Empty from a
+	// server too old to send it.
+	Version string `json:"version,omitempty"`
+
 	// Rollout is set only when the server offered a staged (canary) rollout for the
 	// version. When Rollout.Eligible is false the SDK has already forced
 	// UpdateAvailable to false and cleared UpdateURL/PackageURLs. It is decoded

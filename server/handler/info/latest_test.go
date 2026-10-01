@@ -3,7 +3,22 @@ package info
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
+
+// A response names its release only when the check found one to name.
+func TestAddReleaseVersion(t *testing.T) {
+	response := gin.H{"update_available": true}
+	addReleaseVersion(response, "")
+	if _, ok := response["version"]; ok {
+		t.Fatalf("an empty version was added: %v", response)
+	}
+	addReleaseVersion(response, "1.3.0")
+	if response["version"] != "1.3.0" {
+		t.Fatalf("version = %v, want 1.3.0", response["version"])
+	}
+}
 
 // resolveCachedHasUpdate must survive the Redis JSON round-trip. A raw string
 // body (squirrel_windows RELEASES feed) has no update_available field, so the

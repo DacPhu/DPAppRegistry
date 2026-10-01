@@ -244,6 +244,7 @@ It may also return package-specific URLs with dynamic field names:
 ```json
 {
   "update_available": true,
+  "version": "1.3.0",
   "update_url_deb": "https://downloads.example.com/app.deb",
   "update_url_rpm": "https://downloads.example.com/app.rpm",
   "changelog": "### Changelog\n\n- Added feature X",
@@ -252,6 +253,8 @@ It may also return package-specific URLs with dynamic field names:
   "possible_rollback": true
 }
 ```
+
+`version`, decoded into `resp.Version`, is the release the response describes: the update offered (the required intermediate when `is_intermediate_required`), or with no update the newest release, which `possible_rollback` points back to. It is set whether or not an update is available, so check `UpdateAvailable` first; servers from before it was added leave it empty.
 
 When a version is under a staged rollout, the response also carries a `rollout` object (`{ percent, seed }`), decoded into `resp.Rollout` — see [Staged Rollout](#staged-rollout).
 

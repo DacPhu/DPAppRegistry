@@ -103,10 +103,13 @@ type CheckResult struct {
 	Changelog              []Changelog
 	IsRequiredIntermediate bool
 	PossibleRollback       bool
-	LatestVersion          string
-	Signature              string
-	RolloutPercent         int
-	RolloutSeed            string
+	// LatestVersion is the version of the release the result describes: the
+	// update offered, which is the required intermediate when
+	// IsRequiredIntermediate, or else the newest release.
+	LatestVersion  string
+	Signature      string
+	RolloutPercent int
+	RolloutSeed    string
 }
 
 func (c *appRepository) getBasePipeline() mongo.Pipeline {

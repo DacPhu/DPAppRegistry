@@ -474,6 +474,27 @@ func TestCheckForUpdatesDecodesDynamicPackageURLs(t *testing.T) {
 	}
 }
 
+func TestCheckForUpdatesDecodesTheReleaseVersion(t *testing.T) {
+	t.Parallel()
+
+	for body, want := range map[string]string{
+		`{"update_available": true, "version": "1.3.0", "update_url_zip": "https://downloads.example/app-1.3.0.zip"}`: "1.3.0",
+		`{"update_available": true, "update_url_zip": "https://downloads.example/app-1.3.0.zip"}`:                     "",
+	} {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeRawJSON(t, w, body)
+		}))
+		resp, err := NewClient(Config{BaseURL: server.URL}).CheckForUpdates(context.Background(), defaultOptions())
+		server.Close()
+		if err != nil {
+			t.Fatalf("CheckForUpdates returned error: %v", err)
+		}
+		if resp.Version != want {
+			t.Errorf("Version = %q from %s, want %q", resp.Version, body, want)
+		}
+	}
+}
+
 func TestCheckForUpdatesDecodesBinaryUpdateURL(t *testing.T) {
 	t.Parallel()
 

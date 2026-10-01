@@ -57,6 +57,7 @@ GET /checkVersion?owner=admin&app_name=myapp&version=1.2.0&channel=stable&platfo
 ```json
 {
   "update_available": true,
+  "version": "1.3.0",
   "critical": false,
   "changelog": "…",
   "update_url_dmg": "https://…/myapp-1.3.0.dmg",
@@ -64,7 +65,7 @@ GET /checkVersion?owner=admin&app_name=myapp&version=1.2.0&channel=stable&platfo
 }
 ```
 
-Each downloadable package appears as `update_url_<extension>`. Without a newer version, `update_available` is `false`.
+Each downloadable package appears as `update_url_<extension>`, and `version` names the release they belong to. Without a newer version, `update_available` is `false`; a response that still carries links, such as one offering a rollback, names their release too.
 
 ## SDKs
 

@@ -43,6 +43,8 @@ type Config struct {
 
 // Update is a newer release than the running one.
 type Update struct {
+	// Version is the release's version. Empty from a server too old to say.
+	Version string
 	// URL is the download for this platform, in the most preferred format. It
 	// is empty when the release has no download for this platform.
 	URL       string
@@ -133,7 +135,7 @@ func (c *Checker) Check(ctx context.Context) (*Update, error) {
 	}
 	var u *Update
 	if resp.UpdateAvailable {
-		u = &Update{URL: c.download(resp), Critical: resp.Critical, Changelog: strings.TrimSpace(resp.Changelog)}
+		u = &Update{Version: resp.Version, URL: c.download(resp), Critical: resp.Critical, Changelog: strings.TrimSpace(resp.Changelog)}
 	}
 	c.mu.Lock()
 	c.latest = u

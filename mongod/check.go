@@ -400,6 +400,7 @@ func (c *appRepository) CheckLatestVersion(appName, currentVersion, channelName,
 					Changelog:              changelog,
 					Critical:               requiredApp.Critical,
 					IsRequiredIntermediate: true,
+					LatestVersion:          requiredApp.Version,
 					RolloutPercent:         rolloutPercentOf(requiredApp.RolloutPercent),
 					RolloutSeed:            requiredApp.RolloutSeed,
 				}, nil

@@ -56,7 +56,7 @@ func checker(f *fakeRegistry, version string, cfg Config) *Checker {
 }
 
 const (
-	available = `{"update_available":true,"changelog":"Faster copies.\n","update_url_gz":"https://r/tool.tar.gz","update_url_zip":"https://r/tool.zip"}`
+	available = `{"update_available":true,"version":"1.3.0","changelog":"Faster copies.\n","update_url_gz":"https://r/tool.tar.gz","update_url_zip":"https://r/tool.zip"}`
 	critical  = `{"update_available":true,"critical":true,"update_url_gz":"https://r/tool.tar.gz"}`
 	upToDate  = `{"update_available":false}`
 )
@@ -68,7 +68,7 @@ func TestCheckFindsTheNewerRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Update{URL: "https://r/tool.zip", Changelog: "Faster copies."}
+	want := Update{Version: "1.3.0", URL: "https://r/tool.zip", Changelog: "Faster copies."}
 	if u == nil || *u != want {
 		t.Fatalf("Check = %+v, want %+v", u, want)
 	}

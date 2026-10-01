@@ -154,14 +154,18 @@ func (c *Checker) check(ctx context.Context, interactive bool) {
 	if !interactive && !resp.Critical && url == c.dismissed {
 		return
 	}
-	msg := "You have " + version + ". Download the new version now?"
+	title, offer := "A new version of "+name+" is available", "the new version"
+	if resp.Version != "" {
+		title, offer = name+" "+resp.Version+" is available", resp.Version
+	}
+	msg := "You have " + version + ". Download " + offer + " now?"
 	if resp.Critical {
 		msg = "This update is marked critical. " + msg
 	}
 	if notes := strings.TrimSpace(resp.Changelog); notes != "" {
 		msg += "\n\n" + notes
 	}
-	if !ui.Ask("A new version of "+name+" is available", msg) {
+	if !ui.Ask(title, msg) {
 		c.dismissed = url
 		return
 	}
