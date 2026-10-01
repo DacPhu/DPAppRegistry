@@ -343,6 +343,8 @@ if err != nil {
 }
 ```
 
+A failed check reads like `appregistry: request failed: Get "https://registry.example.com/checkVersion?…": dial tcp …: connection refused`, or, when the server answered, `… returned HTTP 400: <the server's reason>`. With an `EdgeURL`, both endpoints are named: `appregistry: request failed: edge: …; api: …`.
+
 Request failures preserve underlying causes for `errors.Is` and `errors.As`:
 
 ```go

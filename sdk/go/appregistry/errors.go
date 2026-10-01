@@ -3,6 +3,7 @@ package appregistry
 import (
 	"errors"
 	"fmt"
+	"net/url"
 )
 
 var (
@@ -28,7 +29,9 @@ var (
 	ErrRequestFailed = errors.New("appregistry: request failed")
 )
 
-// EndpointError describes a failed request to one DPAppRegistry endpoint.
+// EndpointError describes a failed request to one DPAppRegistry endpoint. Its
+// message names the endpoint and what went wrong; CheckError, which carries it
+// to the caller, adds the package prefix.
 type EndpointError struct {
 	Source     UpdateSource
 	URL        string
@@ -42,15 +45,20 @@ func (e *EndpointError) Error() string {
 		return "<nil>"
 	}
 
-	if e.StatusCode > 0 {
-		return fmt.Sprintf("%s: %s returned HTTP %d", ErrRequestFailed, e.URL, e.StatusCode)
+	switch {
+	case e.StatusCode > 0 && e.Err != nil:
+		return fmt.Sprintf("%s returned HTTP %d: %v", e.URL, e.StatusCode, e.Err)
+	case e.StatusCode > 0:
+		return fmt.Sprintf("%s returned HTTP %d", e.URL, e.StatusCode)
+	case e.Err == nil:
+		return e.URL
 	}
-
-	if e.Err != nil {
-		return fmt.Sprintf("%s: %s: %v", ErrRequestFailed, e.URL, e.Err)
+	// net/http's own errors already name the method and the URL.
+	var urlErr *url.Error
+	if errors.As(e.Err, &urlErr) {
+		return e.Err.Error()
 	}
-
-	return fmt.Sprintf("%s: %s", ErrRequestFailed, e.URL)
+	return fmt.Sprintf("%s: %v", e.URL, e.Err)
 }
 
 // Unwrap returns the underlying endpoint error.
@@ -78,13 +86,15 @@ func (e *CheckError) Error() string {
 		return "<nil>"
 	}
 
+	// The endpoints are named only when both were tried; with no edge
+	// configured the API is the one endpoint there is.
 	switch {
 	case e.EdgeErr != nil && e.APIErr != nil:
-		return fmt.Sprintf("%s: edge failed: %v; api failed: %v", ErrRequestFailed, e.EdgeErr, e.APIErr)
+		return fmt.Sprintf("%s: edge: %v; api: %v", ErrRequestFailed, e.EdgeErr, e.APIErr)
 	case e.EdgeErr != nil:
-		return fmt.Sprintf("%s: edge failed: %v", ErrRequestFailed, e.EdgeErr)
+		return fmt.Sprintf("%s: edge: %v", ErrRequestFailed, e.EdgeErr)
 	case e.APIErr != nil:
-		return fmt.Sprintf("%s: api failed: %v", ErrRequestFailed, e.APIErr)
+		return fmt.Sprintf("%s: %v", ErrRequestFailed, e.APIErr)
 	default:
 		return ErrRequestFailed.Error()
 	}

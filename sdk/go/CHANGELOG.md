@@ -4,6 +4,7 @@
 
 - `appregistry.UpdateResponse.Version`: the version of the release a response describes, from the server's new `version` field.
 - `updatecheck.Update.Version` carries it, and `desktopupdate` names it in its offer ("My App 1.3.0 is available").
+- Shorter errors: a failed check names its URL once and drops the repeated prefix, and a failed response now carries the reason the server gave (`… returned HTTP 400: <reason>`), which used to be discarded.
 
 ## v0.2.0
 

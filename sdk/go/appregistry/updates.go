@@ -3,6 +3,7 @@ package appregistry
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -122,18 +123,33 @@ func (c *Client) doUpdateRequest(ctx context.Context, method, endpoint string, o
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
+		msg := serverMessage(res.Body)
 		_, _ = io.Copy(io.Discard, res.Body)
-		return nil, &EndpointError{Source: source, URL: endpoint, StatusCode: res.StatusCode}
+		return nil, &EndpointError{Source: source, URL: endpoint, StatusCode: res.StatusCode, Err: msg}
 	}
 
 	var updateResp UpdateResponse
 	if err := json.NewDecoder(res.Body).Decode(&updateResp); err != nil {
-		return nil, &EndpointError{Source: source, URL: endpoint, Err: err}
+		return nil, &EndpointError{Source: source, URL: endpoint, Err: fmt.Errorf("decode response: %w", err)}
 	}
 
 	updateResp.applyRollout(opts.DeviceID)
 
 	return &updateResp, nil
+}
+
+// serverMessage reads the reason DPAppRegistry gives in a failed response's
+// body, {"error": "..."}, such as an app it does not know. Nil when there is
+// none.
+func serverMessage(body io.Reader) error {
+	var payload struct {
+		Error string `json:"error"`
+	}
+	raw, _ := io.ReadAll(io.LimitReader(body, 4096))
+	if json.Unmarshal(raw, &payload) != nil || strings.TrimSpace(payload.Error) == "" {
+		return nil
+	}
+	return errors.New(strings.TrimSpace(payload.Error))
 }
 
 func (c *Client) apiCheckURL(opts CheckOptions) (string, error) {
