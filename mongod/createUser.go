@@ -2,10 +2,10 @@ package mongod
 
 import (
 	"context"
+	"fmt"
 	"github.com/DacPhu/DPAppRegistry/server/model"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
@@ -15,7 +15,7 @@ func CreateUser(client *mongo.Client, dbName *mongo.Database, credentials *model
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(credentials.Password), bcrypt.DefaultCost)
 	if err != nil {
-		logrus.Fatal(err)
+		return fmt.Errorf("failed to hash password: %w", err)
 	}
 	collection := dbName.Collection("admins")
 	filter := bson.D{

@@ -11,9 +11,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+const maxPasswordBytes = 72
 
 func SignUp(c *gin.Context, database *mongo.Database, client *mongo.Client, rdb *redis.Client) {
 	if !enforceRateLimits(c, rdb, []rateLimit{signupIPLimit(c), signupGlobalLimit}, timeNow()) {
@@ -31,6 +34,11 @@ func SignUp(c *gin.Context, database *mongo.Database, client *mongo.Client, rdb 
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "wrong api key"})
 		return
 	}
+	// bcrypt cannot hash more than 72 bytes, so a longer password is refused here instead of failing to hash.
+	if creds.Password == "" || len(creds.Password) > maxPasswordBytes {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "password must be between 1 and 72 bytes"})
+		return
+	}
 	ctx, ctxErr := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer ctxErr()
 	// check the user credentials against the admins collection in MongoDB
@@ -43,8 +51,9 @@ func SignUp(c *gin.Context, database *mongo.Database, client *mongo.Client, rdb 
 	}
 	err = mongod.CreateUser(client, database, &creds)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
-	} else {
-		c.JSON(http.StatusOK, gin.H{"result": "Successfully created admin user."})
+		logrus.Errorf("Failed to create admin user %s: %v", creds.Username, err)
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+		return
 	}
+	c.JSON(http.StatusOK, gin.H{"result": "Successfully created admin user."})
 }

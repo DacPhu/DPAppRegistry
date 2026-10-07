@@ -14,16 +14,26 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+var (
+	// An empty HMAC key would let anyone sign a token this server accepts.
+	errJWTSecretUnset = errors.New("JWT_SECRET is not configured")
+	// jwt/v4 skips the expiry check when exp is missing or zero, so such a token never expires.
+	errMissingExp = errors.New("token has no valid exp claim")
+)
+
 // ValidateJWT parses and validates the JWT token
 func ValidateJWT(tokenString string) (*jwt.Token, error) {
-	env := viper.GetViper()
+	secret := viper.GetViper().GetString("JWT_SECRET")
+	if secret == "" {
+		return nil, errJWTSecretUnset
+	}
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		// Ensure the signing method is HMAC
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrInvalidKey
 		}
-		return []byte(env.GetString("JWT_SECRET")), nil
+		return []byte(secret), nil
 	})
 
 	if err != nil {
@@ -42,6 +52,10 @@ func ValidateJWT(tokenString string) (*jwt.Token, error) {
 		default:
 			return nil, fmt.Errorf("token validation error: %w", err)
 		}
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); !ok || !claims.VerifyExpiresAt(jwt.TimeFunc().Unix(), true) {
+		return nil, errMissingExp
 	}
 
 	return token, nil

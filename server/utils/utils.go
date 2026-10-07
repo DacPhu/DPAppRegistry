@@ -39,6 +39,9 @@ type ServerSettings struct {
 // GenerateJWT generates a new JWT token for the given username
 func GenerateJWT(username string) (string, error) {
 	env := viper.GetViper()
+	if env.GetString("JWT_SECRET") == "" {
+		return "", errJWTSecretUnset
+	}
 	// Define JWT claims
 	claims := jwt.MapClaims{
 		"username": username,

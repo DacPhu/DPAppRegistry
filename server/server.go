@@ -1,20 +1,43 @@
 package server
 
 import (
+	"context"
+	"errors"
 	db "github.com/DacPhu/DPAppRegistry/mongod"
 	"github.com/DacPhu/DPAppRegistry/redisdb"
 	"github.com/DacPhu/DPAppRegistry/server/handler"
 	"github.com/DacPhu/DPAppRegistry/server/tuf"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
+	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
+const (
+	minJWTSecretBytes = 32
+	// Bounds how long a client may take to send its request headers (Slowloris).
+	readHeaderTimeout = 10 * time.Second
+	idleTimeout       = 120 * time.Second
+	shutdownTimeout   = 30 * time.Second
+)
+
 func StartServer(config *viper.Viper) {
+	// An empty JWT_SECRET signs and verifies tokens with an empty HMAC key, so anyone could mint an admin token.
+	jwtSecret := config.GetString("JWT_SECRET")
+	if jwtSecret == "" {
+		logrus.Fatal("JWT_SECRET is not set; refusing to start")
+	}
+	if len(jwtSecret) < minJWTSecretBytes {
+		logrus.Warnf("JWT_SECRET is shorter than %d bytes; use a long random value", minJWTSecretBytes)
+	}
+
 	mongoUrl := config.GetString("MONGODB_URL")
 
 	router := gin.Default()
@@ -26,6 +49,8 @@ func StartServer(config *viper.Viper) {
 		if err := router.SetTrustedProxies(proxies); err != nil {
 			logrus.Fatalf("Invalid TRUSTED_PROXIES: %v", err)
 		}
+	} else {
+		logrus.Warnln("TRUSTED_PROXIES is not set, so every proxy is trusted and clients can spoof their IP past the rate limits")
 	}
 
 	client, configDB := db.ConnectToDatabase(mongoUrl)
@@ -154,7 +179,33 @@ func StartServer(config *viper.Viper) {
 	if port == "" {
 		port = "9000"
 	}
-	router.Run(":" + port)
+
+	// Read and write timeouts stay unset: a large upload or download can legitimately take minutes.
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           router.Handler(),
+		ReadHeaderTimeout: readHeaderTimeout,
+		IdleTimeout:       idleTimeout,
+	}
+
+	go func() {
+		logrus.Infof("Listening on %s", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logrus.Fatalf("Server failed: %v", err)
+		}
+	}()
+
+	// Let in-flight requests such as uploads and TUF signing finish on SIGINT/SIGTERM.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	logrus.Infoln("Shutting down server")
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		logrus.Errorf("Graceful shutdown failed: %v", err)
+	}
 }
 
 func corsMiddleware(allowedOrigins []string) gin.HandlerFunc {
