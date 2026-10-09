@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	db "github.com/DacPhu/DPAppRegistry/mongod"
 	"github.com/DacPhu/DPAppRegistry/server/model"
+	"github.com/DacPhu/DPAppRegistry/server/plans"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
 	"net/http"
@@ -100,6 +101,19 @@ func CreateItem(c *gin.Context, repository db.AppRepository, itemType string) {
 		if err := utils.ValidatePrivateCdnEdge(private, cdnEdge); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
+		}
+		// What the account's plan allows, checked before the logo is stored.
+		account, planErr := plans.ForRequest(c)
+		if plans.Respond(c, planErr) || plans.Respond(c, account.CheckNewApp(ctx)) {
+			return
+		}
+		for _, wanted := range []struct {
+			on      bool
+			feature plans.Feature
+		}{{private, plans.PrivateApps}, {utils.GetBoolParam(params["tuf"]), plans.TUF}, {utils.GetBoolParam(params["reports"]), plans.Reports}} {
+			if wanted.on && plans.Respond(c, account.Require(wanted.feature)) {
+				return
+			}
 		}
 		downloadMode := ""
 		if private {

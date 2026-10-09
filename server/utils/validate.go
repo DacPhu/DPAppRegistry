@@ -77,19 +77,20 @@ func ValidateParamsLatest(c *gin.Context, database *mongo.Database) (map[string]
 		return nil, errors.New("invalid arch parameter")
 	}
 
-	errChannels := CheckChannels(ctxQueryMap["channel"].(string), database, c)
+	owner := ctxQueryMap["owner"].(string)
+	errChannels := CheckChannels(ctxQueryMap["channel"].(string), owner, database, c)
 	if errChannels != nil {
 		return nil, errChannels
 	}
 
-	updatedPlatform, updatedUpdater, errPlatforms := CheckPlatformsLatest(ctxQueryMap["platform"].(string), ctxQueryMap["updater"].(string), database, c)
+	updatedPlatform, updatedUpdater, errPlatforms := CheckPlatformsLatest(ctxQueryMap["platform"].(string), ctxQueryMap["updater"].(string), owner, database, c)
 	if errPlatforms != nil {
 		return nil, errPlatforms
 	}
 	logrus.Debugf("updatedPlatform: %s, updatedUpdater: %s", updatedPlatform, updatedUpdater)
 	ctxQueryMap["platform"] = updatedPlatform
 	ctxQueryMap["updater"] = updatedUpdater
-	updatedArch, errArchs := CheckArchsLatest(ctxQueryMap["arch"].(string), database, c)
+	updatedArch, errArchs := CheckArchsLatest(ctxQueryMap["arch"].(string), owner, database, c)
 	if errArchs != nil {
 		return nil, errArchs
 	}
@@ -97,7 +98,9 @@ func ValidateParamsLatest(c *gin.Context, database *mongo.Database) (map[string]
 	return ctxQueryMap, nil
 }
 
-func ValidateParams(c *gin.Context, database *mongo.Database) (map[string]interface{}, error) {
+// ValidateParams checks an upload's parameters against the channels, platforms and archs
+// of owner, the account the files are stored under.
+func ValidateParams(c *gin.Context, database *mongo.Database, owner string) (map[string]interface{}, error) {
 	var ctxQueryMap map[string]interface{}
 	var err error
 
@@ -114,10 +117,10 @@ func ValidateParams(c *gin.Context, database *mongo.Database) (map[string]interf
 		return nil, err
 	}
 
-	return validateCommonParams(ctxQueryMap, database, c)
+	return validateCommonParams(ctxQueryMap, owner, database, c)
 }
 
-func validateCommonParams(ctxQueryMap map[string]interface{}, database *mongo.Database, c *gin.Context) (map[string]interface{}, error) {
+func validateCommonParams(ctxQueryMap map[string]interface{}, owner string, database *mongo.Database, c *gin.Context) (map[string]interface{}, error) {
 	if !IsValidAppName(ctxQueryMap["app_name"].(string)) {
 		return nil, errors.New("invalid app_name parameter")
 	}
@@ -134,13 +137,13 @@ func validateCommonParams(ctxQueryMap map[string]interface{}, database *mongo.Da
 		return nil, errors.New("invalid arch parameter")
 	}
 
-	if err := CheckChannels(ctxQueryMap["channel"].(string), database, c); err != nil {
+	if err := CheckChannels(ctxQueryMap["channel"].(string), owner, database, c); err != nil {
 		return nil, err
 	}
-	if err := CheckPlatforms(ctxQueryMap["platform"].(string), database, c); err != nil {
+	if err := CheckPlatforms(ctxQueryMap["platform"].(string), owner, database, c); err != nil {
 		return nil, err
 	}
-	if err := CheckArchs(ctxQueryMap["arch"].(string), database, c); err != nil {
+	if err := CheckArchs(ctxQueryMap["arch"].(string), owner, database, c); err != nil {
 		return nil, err
 	}
 
@@ -250,11 +253,19 @@ func validateUpdateCommonParams(ctxQueryMap map[string]interface{}, database *mo
 	hasFile := form != nil && len(form.File["file"]) > 0
 
 	if hasFile {
+		username, err := GetUsernameFromContext(c)
+		if err != nil {
+			return nil, err
+		}
+		owner, err := ResolveRequestOwner(c.Request.Context(), username, database)
+		if err != nil {
+			return nil, err
+		}
 		platform, _ := ctxQueryMap["platform"].(string)
 		if !IsValidPlatformName(platform) {
 			return nil, errors.New("invalid platform parameter")
 		}
-		if err := CheckPlatforms(platform, database, c); err != nil {
+		if err := CheckPlatforms(platform, owner, database, c); err != nil {
 			return nil, err
 		}
 
@@ -262,7 +273,7 @@ func validateUpdateCommonParams(ctxQueryMap map[string]interface{}, database *mo
 		if !IsValidArchName(arch) {
 			return nil, errors.New("invalid arch parameter")
 		}
-		if err := CheckArchs(arch, database, c); err != nil {
+		if err := CheckArchs(arch, owner, database, c); err != nil {
 			return nil, err
 		}
 	}

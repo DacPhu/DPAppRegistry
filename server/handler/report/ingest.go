@@ -6,6 +6,7 @@ import (
 	"errors"
 	db "github.com/DacPhu/DPAppRegistry/mongod"
 	"github.com/DacPhu/DPAppRegistry/server/model"
+	"github.com/DacPhu/DPAppRegistry/server/plans"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"net/http"
 	"strings"
@@ -49,6 +50,11 @@ func IngestReport(c *gin.Context, repository db.AppRepository, rdb *redis.Client
 
 	if !reportCtx.ReportsEnabled {
 		c.JSON(http.StatusForbidden, gin.H{"error": "reports are disabled for this app"})
+		return
+	}
+	// An app keeps its report key after its account moves to a plan without crash reports.
+	if !plans.HasFeature(ctx, reportCtx.Owner, plans.Reports) {
+		c.JSON(http.StatusPaymentRequired, gin.H{"error": "crash reports are not included in this app's plan", "code": "plan_limit", "limit": string(plans.Reports)})
 		return
 	}
 

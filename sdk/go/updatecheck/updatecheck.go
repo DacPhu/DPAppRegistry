@@ -50,6 +50,8 @@ type Update struct {
 	URL       string
 	Critical  bool
 	Changelog string
+	// PublishedAt is when the release was published; zero from an older server.
+	PublishedAt time.Time
 }
 
 // ErrNotRelease is what Check returns for a development build, whose version
@@ -76,6 +78,14 @@ func New(cfg Config) *Checker {
 	}
 	if cfg.Logf == nil {
 		cfg.Logf = func(string, ...any) {}
+	}
+	// Without an ID the registry can't count this install, and staged rollouts skip it.
+	if cfg.Check.DeviceID == "" {
+		id, err := appregistry.InstallID(cfg.Check.Owner, cfg.Check.AppName)
+		if err != nil {
+			cfg.Logf("update checks go out without an install id: %v", err)
+		}
+		cfg.Check.DeviceID = id
 	}
 	return &Checker{cfg: cfg}
 }
@@ -135,7 +145,7 @@ func (c *Checker) Check(ctx context.Context) (*Update, error) {
 	}
 	var u *Update
 	if resp.UpdateAvailable {
-		u = &Update{Version: resp.Version, URL: c.download(resp), Critical: resp.Critical, Changelog: strings.TrimSpace(resp.Changelog)}
+		u = &Update{Version: resp.Version, URL: c.download(resp), Critical: resp.Critical, Changelog: strings.TrimSpace(resp.Changelog), PublishedAt: resp.PublishedAt}
 	}
 	c.mu.Lock()
 	c.latest = u

@@ -85,6 +85,14 @@ func New(cfg Config) *Checker {
 	if cfg.Logf == nil {
 		cfg.Logf = func(string, ...any) {}
 	}
+	// Without an ID the registry can't count this install, and staged rollouts skip it.
+	if cfg.Check.DeviceID == "" {
+		id, err := appregistry.InstallID(cfg.Check.Owner, cfg.Check.AppName)
+		if err != nil {
+			cfg.Logf("update checks go out without an install id: %v", err)
+		}
+		cfg.Check.DeviceID = id
+	}
 	return &Checker{cfg: cfg}
 }
 

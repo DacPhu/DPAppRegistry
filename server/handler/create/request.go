@@ -3,6 +3,7 @@ package create
 import (
 	"errors"
 	"fmt"
+	"github.com/DacPhu/DPAppRegistry/server/plans"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
 	"net/http"
@@ -41,7 +42,7 @@ func ResolveUploadRequest(c *gin.Context, database *mongo.Database) (UploadReque
 		return UploadRequest{}, false
 	}
 
-	ctxQueryMap, err := utils.ValidateParams(c, database)
+	ctxQueryMap, err := utils.ValidateParams(c, database, owner)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return UploadRequest{}, false
@@ -50,6 +51,11 @@ func ResolveUploadRequest(c *gin.Context, database *mongo.Database) (UploadReque
 	// Add intermediate field to ctxQueryMap if it exists in the request
 	if intermediate := c.PostForm("intermediate"); intermediate != "" {
 		ctxQueryMap["intermediate"] = intermediate
+	}
+
+	account, err := plans.Load(c.Request.Context(), owner)
+	if plans.Respond(c, err) || plans.Respond(c, account.CheckReleaseFlags(ctxQueryMap)) {
+		return UploadRequest{}, false
 	}
 
 	appName, ok := ctxQueryMap["app_name"].(string)

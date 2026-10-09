@@ -3,6 +3,7 @@ package team
 import (
 	"context"
 	"github.com/DacPhu/DPAppRegistry/server/model"
+	"github.com/DacPhu/DPAppRegistry/server/plans"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"net/http"
 	"time"
@@ -42,6 +43,11 @@ func CreateTeamUser(c *gin.Context, database *mongo.Database) {
 	}
 
 	logrus.Debugf("Team user will be owned by admin: %s", owner)
+
+	account, err := plans.Load(c.Request.Context(), owner)
+	if plans.Respond(c, err) || plans.Respond(c, account.CheckNewMember(c.Request.Context())) {
+		return
+	}
 
 	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
