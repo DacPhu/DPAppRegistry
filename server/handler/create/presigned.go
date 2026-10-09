@@ -9,6 +9,7 @@ import (
 	"fmt"
 	db "github.com/DacPhu/DPAppRegistry/mongod"
 	"github.com/DacPhu/DPAppRegistry/server/model"
+	"github.com/DacPhu/DPAppRegistry/server/plans"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"github.com/DacPhu/DPAppRegistry/server/utils/storage"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
@@ -329,6 +330,19 @@ func InitPresignedUpload(c *gin.Context, database *mongo.Database) {
 			return
 		}
 		fileNames = append(fileNames, file.Name)
+	}
+
+	// The declared sizes must fit the account's storage before any URL is signed.
+	incoming := int64(0)
+	for _, file := range manifest {
+		incoming += file.Length
+	}
+	for _, file := range inlineFiles {
+		incoming += file.Size
+	}
+	account, err := plans.Load(c.Request.Context(), uploadRequest.Owner)
+	if plans.Respond(c, err) || plans.Respond(c, account.CheckUpload(c.Request.Context(), incoming)) {
+		return
 	}
 
 	if err := ValidateUpdaterUpload(ctxQueryMap, updaterType, fileNames, inlineFiles); err != nil {

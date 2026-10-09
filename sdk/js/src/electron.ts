@@ -11,6 +11,8 @@
 // "@dacphu/dpappregistry-sdk/electron".
 
 import { execFile } from 'child_process';
+import { randomBytes } from 'crypto';
+import * as fs from 'fs';
 import * as path from 'path';
 import type { Client } from './client';
 import { systemArch, systemPlatform } from './system';
@@ -27,7 +29,8 @@ interface MessageBoxOptions {
 
 /** The parts of Electron the helper uses: pass `require('electron')`. */
 export interface ElectronModules {
-  readonly app: { getVersion(): string; readonly isPackaged: boolean };
+  /** getPath('userData') holds the install ID; without it checks go out with none. */
+  readonly app: { getVersion(): string; readonly isPackaged: boolean; getPath?(name: 'userData'): string };
   readonly dialog: { showMessageBox(options: MessageBoxOptions): Promise<{ response: number }> };
   readonly shell: { openExternal(url: string): Promise<void> };
 }
@@ -66,6 +69,37 @@ export interface ElectronUpdater {
   stop(): void;
   /** A check the user asked for: also reports "up to date" and failures, and re-offers a declined update. */
   checkNow(): Promise<void>;
+}
+
+/** Set to any value to send no install ID: checks are then counted as estimates, and the install stays out of staged rollouts. */
+export const NO_INSTALL_ID_ENV = 'DPAPPREGISTRY_NO_INSTALL_ID';
+
+/**
+ * The ID this install sends as X-Device-ID: 32 random bytes, made on first use and kept
+ * in the app's userData folder. It tells installs apart without saying anything about the
+ * person or the machine. DPAppRegistry counts an app's monthly active installs by it, and
+ * staged rollouts pick installs by it. Undefined when turned off or not writable.
+ */
+export function installId(app: ElectronModules['app']): string | undefined {
+  if (process.env[NO_INSTALL_ID_ENV] || !app.getPath) return undefined;
+  const file = path.join(app.getPath('userData'), 'dpappregistry-install-id');
+  try {
+    const existing = fs.readFileSync(file, 'utf8').trim();
+    if (/^[0-9a-f]{64}$/.test(existing)) return existing;
+  } catch {
+    // Not made yet.
+  }
+  const id = randomBytes(32).toString('hex');
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    // Written aside and renamed into place, so a reader never sees half an ID.
+    const tmp = `${file}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, `${id}\n`, { mode: 0o600 });
+    fs.renameSync(tmp, file);
+    return id;
+  } catch {
+    return undefined;
+  }
 }
 
 const DEFAULT_PACKAGES: Readonly<Record<string, readonly string[]>> = {
@@ -112,6 +146,7 @@ export function createElectronUpdater(opts: ElectronUpdaterOptions): ElectronUpd
   const log = opts.log ?? ((message: string, err?: unknown) => console.error(`[updater] ${message}`, err ?? ''));
   const packages = opts.packages ?? DEFAULT_PACKAGES[systemPlatform()] ?? [];
   const canInstallInPlace = opts.canInstallInPlace ?? (() => defaultCanInstallInPlace(app));
+  const deviceId = opts.check.deviceId ?? installId(app);
   let checking = false;
   let dismissed: string | null = null;
   let timers: ReturnType<typeof setTimeout>[] = [];
@@ -159,6 +194,7 @@ export function createElectronUpdater(opts: ElectronUpdaterOptions): ElectronUpd
     try {
       const resp = await client.checkForUpdates({
         ...opts.check,
+        deviceId,
         version,
         platform: opts.check.platform ?? systemPlatform(),
         arch: opts.check.arch ?? systemArch(),

@@ -401,6 +401,7 @@ func (c *appRepository) CheckLatestVersion(appName, currentVersion, channelName,
 					Critical:               requiredApp.Critical,
 					IsRequiredIntermediate: true,
 					LatestVersion:          requiredApp.Version,
+					LatestPublishedAt:      requiredApp.Updated_at.Time(),
 					RolloutPercent:         rolloutPercentOf(requiredApp.RolloutPercent),
 					RolloutSeed:            requiredApp.RolloutSeed,
 				}, nil
@@ -428,11 +429,11 @@ func (c *appRepository) CheckLatestVersion(appName, currentVersion, channelName,
 		}
 		artifacts = filteredArtifacts
 		if requestedVersion.Equal(latestAppVersion) {
-			return CheckResult{Found: false, CdnEdge: appMeta.CdnEdge, Artifacts: artifacts, LatestVersion: latestApp.Version}, nil
+			return CheckResult{Found: false, CdnEdge: appMeta.CdnEdge, Artifacts: artifacts, LatestVersion: latestApp.Version, LatestPublishedAt: latestApp.Updated_at.Time()}, nil
 		} else if requestedVersion.GreaterThan(latestAppVersion) {
-			return CheckResult{Found: false, CdnEdge: appMeta.CdnEdge, Artifacts: artifacts, Changelog: changelog, Critical: latestApp.Critical, PossibleRollback: true, LatestVersion: latestApp.Version}, nil
+			return CheckResult{Found: false, CdnEdge: appMeta.CdnEdge, Artifacts: artifacts, Changelog: changelog, Critical: latestApp.Critical, PossibleRollback: true, LatestVersion: latestApp.Version, LatestPublishedAt: latestApp.Updated_at.Time()}, nil
 		} else {
-			return CheckResult{Found: true, CdnEdge: appMeta.CdnEdge, Artifacts: artifacts, Changelog: changelog, Critical: latestApp.Critical, LatestVersion: latestApp.Version, RolloutPercent: rolloutPercentOf(latestApp.RolloutPercent), RolloutSeed: latestApp.RolloutSeed}, nil
+			return CheckResult{Found: true, CdnEdge: appMeta.CdnEdge, Artifacts: artifacts, Changelog: changelog, Critical: latestApp.Critical, LatestVersion: latestApp.Version, LatestPublishedAt: latestApp.Updated_at.Time(), RolloutPercent: rolloutPercentOf(latestApp.RolloutPercent), RolloutSeed: latestApp.RolloutSeed}, nil
 		}
 
 	} else {

@@ -8,6 +8,7 @@ import (
 	"github.com/DacPhu/DPAppRegistry/server/handler/create"
 	"github.com/DacPhu/DPAppRegistry/server/handler/info"
 	"github.com/DacPhu/DPAppRegistry/server/model"
+	"github.com/DacPhu/DPAppRegistry/server/plans"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters/sparkle"
@@ -139,6 +140,16 @@ func UpdateItem(c *gin.Context, repository db.AppRepository, itemType string) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 			return
 		}
+		account, planErr := plans.ForRequest(c)
+		if plans.Respond(c, planErr) {
+			return
+		}
+		if utils.GetBoolParam(params["tuf"]) && !currentApp.Tuf && plans.Respond(c, account.Require(plans.TUF)) {
+			return
+		}
+		if utils.GetBoolParam(params["reports"]) && !currentApp.Reports && plans.Respond(c, account.Require(plans.Reports)) {
+			return
+		}
 
 		if cdnParam, cdnParamExists := params["cdn"]; cdnParamExists {
 			if err := utils.ValidatePrivateCdnEdge(currentApp.Private, utils.GetBoolParam(cdnParam)); err != nil {
@@ -257,6 +268,10 @@ func UpdateSpecificApp(c *gin.Context, repository db.AppRepository, db *mongo.Da
 	if err != nil {
 		logrus.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve owner"})
+		return
+	}
+	account, err := plans.Load(c.Request.Context(), s3Owner)
+	if plans.Respond(c, err) || plans.Respond(c, account.CheckReleaseFlags(ctxQueryMap)) {
 		return
 	}
 

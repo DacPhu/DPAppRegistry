@@ -1,0 +1,30 @@
+[
+  {
+    "createIndexes": "licenses",
+    "indexes": [
+      { "key": { "owner": 1, "created_at": -1 }, "name": "owner_sort_by_created_desc", "background": true },
+      { "key": { "customer.email": 1 }, "name": "customer_email", "background": true },
+      { "key": { "order_id": 1 }, "name": "order_id", "background": true }
+    ]
+  },
+  {
+    "createIndexes": "license_activations",
+    "indexes": [
+      { "key": { "license_id": 1, "cluster_id": 1 }, "name": "license_cluster_unique", "unique": true, "background": true }
+    ]
+  },
+  {
+    "createIndexes": "orders",
+    "indexes": [
+      { "key": { "payment_code": 1 }, "name": "payment_code_unique", "unique": true, "background": true },
+      { "key": { "status": 1, "created_at": -1 }, "name": "status_sort_by_created_desc", "background": true },
+      { "key": { "customer.email": 1 }, "name": "customer_email", "background": true }
+    ]
+  },
+  {
+    "createIndexes": "webhook_events",
+    "indexes": [
+      { "key": { "event_id": 1 }, "name": "event_id_unique", "unique": true, "background": true }
+    ]
+  }
+]

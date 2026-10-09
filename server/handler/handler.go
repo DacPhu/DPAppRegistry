@@ -8,11 +8,15 @@ import (
 	"github.com/DacPhu/DPAppRegistry/server/handler/delete"
 	"github.com/DacPhu/DPAppRegistry/server/handler/download"
 	"github.com/DacPhu/DPAppRegistry/server/handler/info"
+	licensehandler "github.com/DacPhu/DPAppRegistry/server/handler/license"
+	"github.com/DacPhu/DPAppRegistry/server/handler/order"
 	"github.com/DacPhu/DPAppRegistry/server/handler/report"
 	"github.com/DacPhu/DPAppRegistry/server/handler/sign"
+	"github.com/DacPhu/DPAppRegistry/server/handler/store"
 	"github.com/DacPhu/DPAppRegistry/server/handler/team"
 	"github.com/DacPhu/DPAppRegistry/server/handler/token"
 	"github.com/DacPhu/DPAppRegistry/server/handler/update"
+	"github.com/DacPhu/DPAppRegistry/server/plans"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -36,6 +40,18 @@ type AppHandler interface {
 	HealthCheck(*gin.Context)
 	FindLatestVersion(*gin.Context)
 	FetchLatestVersionOfApp(*gin.Context)
+	StoreApps(*gin.Context)
+	AccountPlan(*gin.Context)
+	CreateLicense(*gin.Context)
+	ListLicenses(*gin.Context)
+	ShowLicense(*gin.Context)
+	RevokeLicense(*gin.Context)
+	ActivateLicense(*gin.Context)
+	StoreProducts(*gin.Context)
+	CreateOrder(*gin.Context)
+	OrderStatus(*gin.Context)
+	SePayWebhook(*gin.Context)
+	ListOrders(*gin.Context)
 	Login(*gin.Context)
 	CreateChannel(*gin.Context)
 	ListChannels(*gin.Context)
@@ -103,6 +119,54 @@ func (ch *appHandler) FindLatestVersion(c *gin.Context) {
 func (ch *appHandler) FetchLatestVersionOfApp(c *gin.Context) {
 	// Call the FetchLatestVersionOfApp function from the info package
 	info.FetchLatestVersionOfApp(c, ch.repository, ch.redisClient, ch.performanceMode)
+}
+
+func (ch *appHandler) StoreApps(c *gin.Context) {
+	store.ListApps(c, ch.repository, ch.database)
+}
+
+func (ch *appHandler) AccountPlan(c *gin.Context) {
+	plans.Handle(c)
+}
+
+func (ch *appHandler) CreateLicense(c *gin.Context) {
+	licensehandler.Create(c, ch.database)
+}
+
+func (ch *appHandler) ListLicenses(c *gin.Context) {
+	licensehandler.List(c, ch.database)
+}
+
+func (ch *appHandler) ShowLicense(c *gin.Context) {
+	licensehandler.Show(c, ch.database)
+}
+
+func (ch *appHandler) RevokeLicense(c *gin.Context) {
+	licensehandler.Revoke(c, ch.database)
+}
+
+func (ch *appHandler) ActivateLicense(c *gin.Context) {
+	licensehandler.Activate(c, ch.database, ch.redisClient)
+}
+
+func (ch *appHandler) StoreProducts(c *gin.Context) {
+	order.Products(c)
+}
+
+func (ch *appHandler) CreateOrder(c *gin.Context) {
+	order.Create(c, ch.database, ch.redisClient)
+}
+
+func (ch *appHandler) OrderStatus(c *gin.Context) {
+	order.Status(c, ch.database, ch.redisClient)
+}
+
+func (ch *appHandler) SePayWebhook(c *gin.Context) {
+	order.SePayWebhook(c, ch.database)
+}
+
+func (ch *appHandler) ListOrders(c *gin.Context) {
+	order.List(c, ch.database)
 }
 
 func (ch *appHandler) GetAppByName(c *gin.Context) {

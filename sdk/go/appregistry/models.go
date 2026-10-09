@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
+	"time"
 )
 
 // CheckOptions contains the typed parameters used to check for updates.
@@ -44,6 +45,10 @@ type UpdateResponse struct {
 	// set whether or not UpdateAvailable is, so check that first. Empty from a
 	// server too old to send it.
 	Version string `json:"version,omitempty"`
+
+	// PublishedAt is when the release Version names was published. Zero from a
+	// server too old to send it. A license's UpdatesCover takes it.
+	PublishedAt time.Time `json:"published_at,omitempty"`
 
 	// Rollout is set only when the server offered a staged (canary) rollout for the
 	// version. When Rollout.Eligible is false the SDK has already forced

@@ -54,8 +54,16 @@ func main() {
 		return
 	}
 
+	if args[0] == "account" || args[0] == "usage" || args[0] == "license" || args[0] == "order" {
+		if err := runOperatorCommand(args); err != nil {
+			logrus.Errorln(err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if args[0] != "migrate" {
-		logrus.Errorf("Unknown command %q. Supported commands: migrate up|down", args[0])
+		logrus.Errorf("Unknown command %q. Supported commands: migrate up|down, account, usage, license, order", args[0])
 		os.Exit(1)
 	}
 

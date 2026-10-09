@@ -26,7 +26,9 @@ app.whenReady().then(() => updater.start());
 // In a menu: { label: 'Check for Updates…', click: () => void updater.checkNow() }
 ```
 
-The package depends on neither `electron` nor `electron-updater`: the app passes its own. On DPAppRegistry, register the app's platforms with the `electron-builder` updater and upload electron-builder's output for each release: its installers, blockmaps and `latest*.yml`. The installers need names without spaces, because `latest*.yml` names files with dashes.
+The package depends on neither `electron` nor `electron-updater`: the app passes its own. On DPAppRegistry, register the app's platforms with the `electron-builder` updater and upload electron-builder's output for each release: its installers, blockmaps and `latest*.yml`. The installers need names without spaces, because `latest*.yml` names files with dashes. Upload them with the updater set to `electron-builder` (in the dashboard, or `"updater": "electron-builder"` in the upload's data); otherwise the files are renamed and `latest*.yml` no longer finds them.
+
+Each install sends an install ID as `X-Device-ID`: 32 random bytes, made on first use and kept in `app.getPath('userData')/dpappregistry-install-id`. It tells installs apart without saying anything about the person or the machine. DPAppRegistry counts the app's monthly active installs by it, and staged rollouts pick installs by it. A `deviceId` in `check` is sent instead; set `DPAPPREGISTRY_NO_INSTALL_ID=1` to send none.
 
 ## Requirements
 
@@ -249,6 +251,20 @@ A successful request returns HTTP `202` with a mapped `ReportResponse`:
 Any non-`202` response rejects with an `EndpointError` whose `source` is `'report'` and `statusCode` holds the HTTP status (e.g. `401`, `403`, `429`). Network and JSON failures are wrapped in `EndpointError` as well.
 
 An optional `AbortSignal` can be passed as the second argument to cancel the request.
+
+## License Keys
+
+A registry that sells its products issues license keys: one line, `dpl1.<payload>.<signature>`, signed with the registry's Ed25519 key. An app verifies a key offline with the registry's public key (`DPAppRegistry license pubkey`), never trusting the payload before the signature checks:
+
+```ts
+import { parseLicense, licenseExpired, licenseCoversUpdate } from '@dacphu/dpappregistry-sdk';
+
+const license = parseLicense(key, [PUBLIC_KEY_HEX]);  // throws ErrLicenseFormat / ErrLicenseSignature
+if (licenseExpired(license)) { /* the term ended */ }
+if (!licenseCoversUpdate(license, resp.publishedAt)) { /* this release is past the license's updates window */ }
+```
+
+`license.clusters` and `license.clusterIds` say how many servers the key covers and, when set, which. `licenseAllowsCluster(license, id)` checks the latter. Whitespace in a key is ignored, since mail clients wrap long lines.
 
 ## Base API Request
 

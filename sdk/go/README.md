@@ -146,7 +146,9 @@ resp, err := client.CheckForUpdates(ctx, appregistry.CheckOptions{
 })
 ```
 
-`DeviceID` is optional. When set, the SDK sends it as the `X-Device-ID` header.
+`DeviceID` is optional. When set, the SDK sends it as the `X-Device-ID` header. The registry counts an app's monthly active installs by it, and staged rollouts pick installs by it.
+
+`desktopupdate` and `updatecheck` fill an empty `DeviceID` with `appregistry.InstallID(owner, app)`: 32 random bytes, made on first use and kept in the user's config directory (`<config dir>/dpappregistry/<owner>-<app>/install-id`). It tells installs apart without saying anything about the person or the machine, and deleting the file makes a new one. Set `DPAPPREGISTRY_NO_INSTALL_ID=1` to send no ID; such checks are counted as estimates, and the install stays out of staged rollouts.
 
 `DownloadToken` is optional. It is only needed for a private app whose download mode is `strict`.
 
@@ -213,7 +215,7 @@ if resp.Rollout != nil {
 }
 ```
 
-`DeviceID` is required to participate: it must be the same stable value used for telemetry (`X-Device-ID`). Without it the bucket cannot be computed, so the install stays out of the rollout (`Eligible: false`, `Bucket: nil`) until a `DeviceID` is provided. Raising the percentage on the same version only ever adds installs. Rollout works identically in edge/CDN mode, since the same JSON body is served from the cached manifest.
+`DeviceID` is required to participate: it must be the same stable value used for telemetry (`X-Device-ID`). Without it the bucket cannot be computed, so the install stays out of the rollout (`Eligible: false`, `Bucket: nil`) until a `DeviceID` is provided. `desktopupdate` and `updatecheck` provide one unless install IDs are turned off (see Update Checks). Raising the percentage on the same version only ever adds installs. Rollout works identically in edge/CDN mode, since the same JSON body is served from the cached manifest.
 
 The `appregistry.RolloutBucket(deviceID, seed)` helper is exported if you need to compute a bucket yourself.
 

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	db "github.com/DacPhu/DPAppRegistry/mongod"
+	"github.com/DacPhu/DPAppRegistry/server/plans"
+	"github.com/DacPhu/DPAppRegistry/server/usage"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 	"github.com/DacPhu/DPAppRegistry/server/utils/updaters"
 	"net/http"
@@ -184,6 +186,15 @@ func addReleaseVersion(response gin.H, version string) {
 	}
 }
 
+// addReleaseDate says when the release was published, as "published_at", so
+// an app with a license that covers updates up to a date can tell whether
+// this one is in its window.
+func addReleaseDate(response gin.H, publishedAt time.Time) {
+	if !publishedAt.IsZero() {
+		response["published_at"] = publishedAt.UTC().Format(time.RFC3339)
+	}
+}
+
 // ignoredArtifactPackages lists packages that are derived by updaters themselves
 // (e.g. electron-builder fetches .blockmap based on the yml, Squirrel fetches
 // .nupkg from the RELEASES feed) and must not be returned.
@@ -249,8 +260,8 @@ func FindLatestVersion(c *gin.Context, repository db.AppRepository, db *mongo.Da
 			var cachedData CachedResponse
 			if json.Unmarshal([]byte(cachedResponse), &cachedData) == nil {
 				logrus.Debugln("Return cached data: ", cachedData)
-				deviceID := c.GetHeader("X-Device-ID")
-				logStatsToRedis(ctx, rdb, validatedParams, resolveCachedHasUpdate(cachedData), deviceID)
+				deviceID, estimatedID := installIDs(c, validatedParams)
+				logStatsToRedis(ctx, rdb, validatedParams, resolveCachedHasUpdate(cachedData), deviceID, estimatedID)
 
 				// Serve cached raw-body responses (e.g. squirrel_windows RELEASES feed)
 				if cachedData.ContentType != "" {
@@ -291,10 +302,10 @@ func FindLatestVersion(c *gin.Context, repository db.AppRepository, db *mongo.Da
 		return
 	}
 	// Log stats for the request
-	deviceID := c.GetHeader("X-Device-ID")
+	deviceID, estimatedID := installIDs(c, validatedParams)
 	logrus.Debugf("X-Device-ID: %s", deviceID)
 	// Update stats with actual update status
-	logStatsToRedis(ctx, rdb, validatedParams, checkResult.Found, deviceID)
+	logStatsToRedis(ctx, rdb, validatedParams, checkResult.Found, deviceID, estimatedID)
 
 	if !checkResult.Found {
 		if len(checkResult.Artifacts) == 0 {
@@ -308,6 +319,7 @@ func FindLatestVersion(c *gin.Context, repository db.AppRepository, db *mongo.Da
 				response[key] = url
 			}
 			addReleaseVersion(response, checkResult.LatestVersion)
+			addReleaseDate(response, checkResult.LatestPublishedAt)
 
 			if changelog := BuildChangelogResponse(checkResult.Changelog); changelog != "" {
 				response["changelog"] = changelog
@@ -358,6 +370,7 @@ func FindLatestVersion(c *gin.Context, repository db.AppRepository, db *mongo.Da
 		response[key] = url
 	}
 	addReleaseVersion(response, checkResult.LatestVersion)
+	addReleaseDate(response, checkResult.LatestPublishedAt)
 	// Add changelog to the response last
 	if changelog := BuildChangelogResponse(checkResult.Changelog); changelog != "" {
 		response["changelog"] = changelog
@@ -645,8 +658,27 @@ func trackClientTelemetryWithLatest(ctx context.Context, rdb *redis.Client, para
 	}
 }
 
-func logStatsToRedis(ctx context.Context, rdb *redis.Client, params map[string]interface{}, hasUpdate bool, deviceID string) {
+// installIDs reads the X-Device-ID the client sent or, when it sent none, the estimate
+// that counts it toward monthly active installs instead (server/usage).
+func installIDs(c *gin.Context, params map[string]interface{}) (string, string) {
+	if deviceID := c.GetHeader("X-Device-ID"); deviceID != "" {
+		return deviceID, ""
+	}
+	platform, _ := params["platform"].(string)
+	arch, _ := params["arch"].(string)
+	return "", usage.EstimatedID(c, platform, arch)
+}
+
+func logStatsToRedis(ctx context.Context, rdb *redis.Client, params map[string]interface{}, hasUpdate bool, deviceID, estimatedID string) {
+	owner, _ := params["owner"].(string)
+	appName, _ := params["app_name"].(string)
+	// Every check counts toward its account's monthly active installs, which plans are priced by.
+	usage.RecordInstall(ctx, rdb, owner, appName, deviceID, estimatedID, time.Now())
 	if !viper.GetBool("ENABLE_TELEMETRY") {
+		return
+	}
+	// The per-day statistics keep each device ID for 30 days; only plans that show them pay for that.
+	if !plans.HasFeature(ctx, owner, plans.Statistics) {
 		return
 	}
 	trackClientTelemetry(ctx, rdb, params, hasUpdate, deviceID)

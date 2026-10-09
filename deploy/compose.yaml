@@ -1,0 +1,94 @@
+# DPAppRegistry in production: the API, MongoDB, Redis and Garage (S3
+# storage). Nothing here is reachable from outside the server: the API and
+# Garage listen on 127.0.0.1 only, and the host's nginx publishes them (see
+# nginx/). Values come from .env next to this file, which server-setup.sh
+# creates with fresh secrets on the first setup.
+
+name: dpappregistry
+
+networks:
+  default:
+    ipam:
+      config:
+        # Fixed, so the API can trust the gateway nginx's requests arrive from
+        # (TRUSTED_PROXIES in backend.env).
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
+
+services:
+  backend:
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    image: dpappregistry-backend:local
+    restart: unless-stopped
+    volumes:
+      - ./backend.env:/app/.env:ro
+    environment:
+      # Changes when backend.env does, so compose restarts the API to read it.
+      BACKEND_ENV_HASH: ${BACKEND_ENV_HASH:-}
+    ports:
+      - "127.0.0.1:9000:9000"
+    extra_hosts:
+      # The API stores files through the storage's public address (the one in
+      # signed links); this sends it straight to nginx on this host.
+      - "${STORE_DOMAIN}:host-gateway"
+    depends_on:
+      db:
+        condition: service_started
+      cache:
+        condition: service_started
+      s3:
+        condition: service_healthy
+
+  db:
+    image: mongo:7.0.12
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    volumes:
+      - db:/data/db
+
+  cache:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - cache:/data
+
+  s3:
+    build:
+      context: ./src
+      dockerfile: docker-compose/images/garage/Dockerfile
+    image: dpappregistry-garage:local
+    restart: unless-stopped
+    environment:
+      RUST_LOG: garage=warn
+      GARAGE_LAYOUT_ZONE: dc1
+      GARAGE_LAYOUT_CAPACITY: 20G
+      GARAGE_LAYOUT_VERSION: "1"
+      GARAGE_PRIVATE_BUCKET: dpappregistry-private
+      GARAGE_PUBLIC_BUCKET: dpappregistry-public
+      GARAGE_KEY_NAME: dpappregistry
+      GARAGE_ACCESS_KEY: ${GARAGE_ACCESS_KEY}
+      GARAGE_SECRET_KEY: ${GARAGE_SECRET_KEY}
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    ports:
+      - "127.0.0.1:3900:3900" # S3 API
+      - "127.0.0.1:3902:3902" # the public bucket as a website
+    healthcheck:
+      test: ["CMD", "garage", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  db:
+  cache:
+  garage_meta:
+  garage_data:

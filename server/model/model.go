@@ -68,6 +68,9 @@ type SpecificArtifactsWithoutIDs struct {
 	TufTaskID *string `bson:"tuf_task_id,omitempty"`
 	TufSigned bool    `bson:"tuf_signed,omitempty"`
 	IsFeed    bool    `bson:"is_feed,omitempty"`
+	// Read by the store page only, so the other endpoints' JSON is unchanged.
+	Hashes map[string]string `bson:"hashes,omitempty" json:"-"`
+	Length int64             `bson:"length,omitempty" json:"-"`
 }
 
 type SpecificAppWithoutIDs struct {

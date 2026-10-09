@@ -393,3 +393,19 @@ func postSlackNotification(ctx context.Context, api *slack.Client, channelID str
 	logrus.Debugf("Slack message sent to channel %s at %s", channelID, timestamp)
 	return nil
 }
+
+// SendSlackText posts one line to the configured Slack channel, when Slack is
+// on. Failures are logged: these messages inform, they never gate anything.
+func SendSlackText(text string) {
+	env := viper.GetViper()
+	if !env.GetBool("SLACK_ENABLE") {
+		return
+	}
+	token, channelID := env.GetString("SLACK_BOT_TOKEN"), env.GetString("SLACK_CHANNEL")
+	if token == "" || channelID == "" {
+		return
+	}
+	if _, _, err := slack.New(token).PostMessage(channelID, slack.MsgOptionText(text, false)); err != nil {
+		logrus.Errorf("Slack message failed: %v", err)
+	}
+}

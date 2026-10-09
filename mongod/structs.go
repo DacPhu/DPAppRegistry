@@ -106,10 +106,13 @@ type CheckResult struct {
 	// LatestVersion is the version of the release the result describes: the
 	// update offered, which is the required intermediate when
 	// IsRequiredIntermediate, or else the newest release.
-	LatestVersion  string
-	Signature      string
-	RolloutPercent int
-	RolloutSeed    string
+	LatestVersion string
+	// LatestPublishedAt is when the release LatestVersion names was last
+	// published or changed; licenses are checked against it.
+	LatestPublishedAt time.Time
+	Signature         string
+	RolloutPercent    int
+	RolloutSeed       string
 }
 
 func (c *appRepository) getBasePipeline() mongo.Pipeline {

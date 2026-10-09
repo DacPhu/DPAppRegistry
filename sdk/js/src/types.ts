@@ -53,6 +53,9 @@ export interface UpdateResponse {
   readonly possibleRollback: boolean;
   readonly packageUrls: readonly PackageUpdateURL[];
   readonly source: UpdateSource;
+  // When the release the response describes was published; undefined from a server too
+  // old to send it. `licenseCoversUpdate` takes it.
+  readonly publishedAt?: Date;
   // Present only when the server offered a staged (canary) rollout for the version.
   // When `eligible` is false the SDK has already forced `updateAvailable` to false.
   readonly rollout?: RolloutInfo;
@@ -86,4 +89,29 @@ export interface ReportResponse {
   readonly status: string;
   readonly groupHash: string;
   readonly storedDetails: boolean;
+}
+
+export interface LicenseCustomer {
+  readonly name: string;
+  readonly email: string;
+}
+
+/** A verified license key's content; see `parseLicense`. */
+export interface License {
+  /** The license's record in the registry that issued it. */
+  readonly id: string;
+  readonly product: string;
+  readonly plan: string;
+  readonly customer: LicenseCustomer;
+  /** How many servers (clusters) the license covers; 0 means no limit. */
+  readonly clusters: number;
+  /** When set, the only clusters the license is valid on. */
+  readonly clusterIds: readonly string[];
+  readonly issuedAt: Date;
+  readonly expiresAt: Date;
+  /** The last release date the license entitles its holder to install; undefined means every release. */
+  readonly updatesUntil?: Date;
+  readonly issuer: string;
+  /** Names the public key that verifies it (`licenseKeyId`). */
+  readonly keyId: string;
 }

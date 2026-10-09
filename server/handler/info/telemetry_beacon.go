@@ -3,7 +3,10 @@ package info
 import (
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/DacPhu/DPAppRegistry/server/plans"
+	"github.com/DacPhu/DPAppRegistry/server/usage"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 
 	"github.com/gin-gonic/gin"
@@ -61,7 +64,11 @@ func TelemetryBeacon(c *gin.Context, rdb *redis.Client) {
 	} else {
 		logrus.Debug("Telemetry beacon latest state is missing or invalid; latest/outdated metrics will be skipped")
 	}
-	trackClientTelemetryWithLatest(c.Request.Context(), rdb, params, hasUpdate, hasLatestState, deviceID)
+	// A beacon stands for a check the CDN answered, so it counts as an active install too.
+	usage.RecordInstall(c.Request.Context(), rdb, owner, appName, deviceID, "", time.Now())
+	if plans.HasFeature(c.Request.Context(), owner, plans.Statistics) {
+		trackClientTelemetryWithLatest(c.Request.Context(), rdb, params, hasUpdate, hasLatestState, deviceID)
+	}
 	c.Status(http.StatusNoContent)
 }
 

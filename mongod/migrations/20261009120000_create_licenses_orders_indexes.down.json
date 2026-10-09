@@ -1,0 +1,10 @@
+[
+  { "dropIndexes": "licenses", "index": "owner_sort_by_created_desc" },
+  { "dropIndexes": "licenses", "index": "customer_email" },
+  { "dropIndexes": "licenses", "index": "order_id" },
+  { "dropIndexes": "license_activations", "index": "license_cluster_unique" },
+  { "dropIndexes": "orders", "index": "payment_code_unique" },
+  { "dropIndexes": "orders", "index": "status_sort_by_created_desc" },
+  { "dropIndexes": "orders", "index": "customer_email" },
+  { "dropIndexes": "webhook_events", "index": "event_id_unique" }
+]

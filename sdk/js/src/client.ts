@@ -53,6 +53,7 @@ export interface Config {
 }
 
 interface RawUpdateResponse {
+  readonly published_at?: string;
   update_available?: boolean;
   update_url?: string;
   changelog?: string;
@@ -456,6 +457,12 @@ function createRequestSignal(userSignal: AbortSignal | null, timeoutMs: number):
   return controller.signal;
 }
 
+function parseDate(value: unknown): Date | undefined {
+  if (typeof value !== 'string' || value === '') return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
 function parseUpdateResponse(
   raw: RawUpdateResponse,
   deviceId: string | undefined,
@@ -491,6 +498,7 @@ function parseUpdateResponse(
     updateUrl: gated ? '' : raw.update_url ?? '',
     changelog: raw.changelog ?? '',
     critical: raw.critical ?? false,
+    publishedAt: parseDate(raw.published_at),
     isIntermediateRequired: raw.is_intermediate_required ?? false,
     possibleRollback: raw.possible_rollback ?? false,
     packageUrls: gated ? [] : packageUrls,

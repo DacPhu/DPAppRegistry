@@ -14,6 +14,13 @@ export class ValidationError extends DPAppRegistryError {
   }
 }
 
+export class LicenseError extends DPAppRegistryError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'LicenseError';
+  }
+}
+
 export class RequestFailedError extends DPAppRegistryError {
   constructor(message: string) {
     super(message);
@@ -84,3 +91,7 @@ export const ErrMissingPlatform = new ValidationError('dpappregistry: missing pl
 export const ErrMissingArch = new ValidationError('dpappregistry: missing arch');
 export const ErrInvalidEventType = new ValidationError('dpappregistry: invalid event type');
 export const ErrInvalidReason = new ValidationError('dpappregistry: invalid event reason');
+
+export const ErrLicenseFormat = new LicenseError('dpappregistry: not a license key');
+export const ErrLicenseSignature = new LicenseError('dpappregistry: license signature does not verify');
+export const ErrNoLicensePublicKey = new LicenseError('dpappregistry: no public key to verify the license with');

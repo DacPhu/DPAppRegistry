@@ -1,5 +1,8 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { Client } from '../src/client';
-import { createElectronUpdater, feedFolder } from '../src/electron';
+import { createElectronUpdater, feedFolder, NO_INSTALL_ID_ENV } from '../src/electron';
 import type { AutoUpdaterLike, ElectronModules, ElectronUpdaterOptions } from '../src/electron';
 import { createTestServer, writeJSON } from './helpers';
 import type { TestServer } from './helpers';
@@ -56,10 +59,13 @@ const FEED = 'https://cdn.example.com/electron-builder/app-admin/1.2.0/stable/da
 let server: TestServer;
 let status = 200;
 let body: unknown;
+let deviceIds: (string | undefined)[] = [];
 
 beforeEach(async () => {
   status = 200;
+  deviceIds = [];
   server = await createTestServer((req, res) => {
+    deviceIds.push(req.headers['x-device-id'] as string | undefined);
     if (!req.url?.startsWith('/checkVersion')) {
       res.statusCode = 404;
       res.end();
@@ -173,5 +179,46 @@ describe('createElectronUpdater', () => {
     u.stop();
     expect(shown.length).toBeGreaterThanOrEqual(2);
     expect(shown[0].detail).toMatch(/^This update is marked critical\./);
+  });
+});
+
+describe('install id', () => {
+  const upToDate = { update_available: false };
+
+  function withUserData() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dpappregistry-user-data-'));
+    const fake = fakeElectron();
+    const electron: ElectronModules = { ...fake.electron, app: { ...fake.electron.app, getPath: () => dir } };
+    return { electron, dir };
+  }
+
+  afterEach(() => {
+    delete process.env[NO_INSTALL_ID_ENV];
+  });
+
+  it('sends a random id, kept in userData for the next launch', async () => {
+    body = upToDate;
+    const { electron, dir } = withUserData();
+    await updater(electron).checkNow();
+    await updater(electron).checkNow();
+    expect(deviceIds[0]).toMatch(/^[0-9a-f]{64}$/);
+    expect(deviceIds[1]).toBe(deviceIds[0]);
+    expect(fs.readFileSync(path.join(dir, 'dpappregistry-install-id'), 'utf8').trim()).toBe(deviceIds[0]);
+  });
+
+  it("uses the app's own deviceId instead", async () => {
+    body = upToDate;
+    const { electron } = withUserData();
+    await updater(electron, { check: { owner: 'admin', appName: 'app', channel: 'stable', deviceId: 'own-id' } }).checkNow();
+    expect(deviceIds).toEqual(['own-id']);
+  });
+
+  it('sends none when turned off, or without a userData folder', async () => {
+    body = upToDate;
+    process.env[NO_INSTALL_ID_ENV] = '1';
+    await updater(withUserData().electron).checkNow();
+    delete process.env[NO_INSTALL_ID_ENV];
+    await updater(fakeElectron().electron).checkNow();
+    expect(deviceIds).toEqual([undefined, undefined]);
   });
 });

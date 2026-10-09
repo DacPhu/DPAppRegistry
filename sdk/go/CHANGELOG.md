@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `appregistry.InstallID`: a random ID per install of an app, made on first use and kept in the user's config directory. `desktopupdate` and `updatecheck` send it as `X-Device-ID` when the app sets no `DeviceID`, so the registry can count active installs and staged rollouts include the install. `DPAPPREGISTRY_NO_INSTALL_ID=1` turns it off.
+
 ## v0.3.0
 
 - `appregistry.UpdateResponse.Version`: the version of the release a response describes, from the server's new `version` field.

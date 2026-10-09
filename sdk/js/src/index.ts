@@ -11,10 +11,20 @@ export type {
   ReportEventType,
   ReportOptions,
   ReportResponse,
+  License,
+  LicenseCustomer,
   RolloutInfo,
   UpdateResponse,
   UpdateSource,
 } from './types';
+export {
+  LICENSE_PREFIX,
+  licenseAllowsCluster,
+  licenseCoversUpdate,
+  licenseExpired,
+  licenseKeyId,
+  parseLicense,
+} from './license';
 export { NATIVE_UPDATERS } from './feed';
 export { rolloutBucket } from './rollout';
 export {
@@ -33,7 +43,11 @@ export {
   ErrMissingPlatform,
   ErrMissingReportKey,
   ErrMissingVersion,
+  ErrLicenseFormat,
+  ErrLicenseSignature,
+  ErrNoLicensePublicKey,
   DPAppRegistryError,
+  LicenseError,
   RequestFailedError,
   UnsupportedUpdaterError,
   ValidationError,
