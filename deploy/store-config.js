@@ -51,7 +51,6 @@ window.STORE_CONFIG = {
         vi: 'Bucket thường giữ mỗi đối tượng thành một file thật mà công cụ nào cũng đọc được; bucket mã hóa dùng AES-256-GCM. Mọi S3 client đều làm việc được với cả hai.',
         en: 'Plain buckets keep each object as a real file any tool can read; encrypted buckets use AES-256-GCM. Every S3 client works with both.',
       },
-      homepage: { vi: 'https://mitekbro.com/san-pham/dpfilesystem/', en: 'https://mitekbro.com/en/products/dpfilesystem/' },
       // Prices come from the registry (GET /store/products); these are the words.
       pricing: {
         features: {
