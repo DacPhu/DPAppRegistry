@@ -24,7 +24,7 @@ set -euo pipefail
 HOST="${DEPLOY_HOST:-103.110.33.182}"
 LOGIN="${DEPLOY_USER:-root}@$HOST"
 KEY="${DEPLOY_KEY:-$HOME/.ssh/mitekbro_deploy}"
-DOMAIN="${DOMAIN:-store.mitekbro.com}"
+DOMAIN="${DOMAIN:-registry.mitekbro.com}"
 DASHBOARD_IMAGE=registry.hub.docker.com/ku9nov/faynosync-dashboard:latest
 APP_DIR=/opt/dpappregistry
 WEB_DIR=/var/www/dpappregistry

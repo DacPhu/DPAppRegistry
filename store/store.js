@@ -7,6 +7,16 @@
   // An account's own page, /@<account>/, lists that account's apps. The root
   // lists config.owner's, or the server's STORE_OWNER's.
   const account = (location.pathname.match(/^\/@([a-z0-9-]+)\/?$/) || [])[1] || '';
+  // A site that shows its apps on its own pages sets config.home: the root
+  // sends its visitors there, and a link to one app (#app-<name>) to that
+  // app's homepage. Account pages and order pages stay.
+  if (config.home && !account && !location.pathname.startsWith('/order/')) {
+    const lang = new URLSearchParams(location.search).get('lang') || config.defaultLang || 'en';
+    const local = (value) => (value && typeof value === 'object' ? value[lang] || value.en : value);
+    const name = location.hash.startsWith('#app-') ? location.hash.slice(5) : '';
+    location.replace(local(config.apps?.[name]?.homepage) || local(config.home));
+    return;
+  }
   // What the page shows: config.js, and on an account's page what the account adds.
   let site = config;
 

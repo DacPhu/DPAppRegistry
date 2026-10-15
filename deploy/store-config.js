@@ -1,4 +1,5 @@
-// The store at store.mitekbro.com. deploy.sh installs this as the page's config.js.
+// The store page at registry.mitekbro.com. deploy.sh installs this as the page's config.js.
+// Mitekbro shows its apps on mitekbro.com, so `home` sends the page's visitors there.
 window.STORE_CONFIG = {
   name: 'Mitekbro Store',
   company: 'Mitekbro',
@@ -8,6 +9,8 @@ window.STORE_CONFIG = {
   channel: 'stable',
   owner: '',
   defaultLang: 'vi',
+  // Where the page sends visitors: Mitekbro lists its apps on its own site.
+  home: { vi: 'https://mitekbro.com/', en: 'https://mitekbro.com/en/' },
   tagline: {
     vi: 'Tải phiên bản mới nhất các ứng dụng của Mitekbro cho macOS, Windows và Linux.',
     en: 'Download the latest Mitekbro apps for macOS, Windows and Linux.',
