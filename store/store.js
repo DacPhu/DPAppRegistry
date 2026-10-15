@@ -903,7 +903,10 @@
   // itself once everything that moves them (the apps, prices, this machine's
   // architecture) has rendered, unless the visitor has scrolled meanwhile. It
   // jumps there, where store.css's smooth scrolling would glide past every
-  // card above it.
+  // card above it. The browser mustn't restore an earlier scroll position
+  // first, as on a reload: it does so before the cards exist, and the page
+  // shifts under it when they arrive.
+  if (location.hash.startsWith('#app-') && 'scrollRestoration' in history) history.scrollRestoration = 'manual';
   function showLinkedApp() {
     let id = '';
     try {
