@@ -252,7 +252,13 @@
   const $$ = (selector) => document.querySelectorAll(selector);
   const fill = (text, values) => text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '');
 
-  let lang = saved.get(LANG_KEY) || config.defaultLang || (navigator.language || '').slice(0, 2);
+  // ?lang=vi|en opens the page in that language, for links from a site that
+  // knows which one its reader uses. It holds for this visit only: what the
+  // page remembers is the visitor's own pick on the switcher.
+  const asked = new URLSearchParams(location.search).get('lang');
+  let lang = Object.keys(STRINGS).includes(asked)
+    ? asked
+    : saved.get(LANG_KEY) || config.defaultLang || (navigator.language || '').slice(0, 2);
   if (!STRINGS[lang]) lang = 'en';
   let apps = null; // null until loaded, or after loading failed
   let failed = false;
@@ -513,7 +519,9 @@
   function card(item) {
     const s = t();
     const { app } = item;
-    const node = $('#app-card').content.firstElementChild.cloneNode(true);
+    const node = $('#card-template').content.firstElementChild.cloneNode(true);
+    // What a link to one app, #app-<name>, opens the page at.
+    node.id = `app-${app.name}`;
 
     paintLogo(node.querySelector('.app__logo'), item);
     node.querySelector('.app__name').textContent = item.title;
@@ -890,12 +898,39 @@
     $('[data-icon]').href = site.logo || 'data:,';
   }
 
+  // A link to #app-<name> opens the page at that app's card. The cards arrive
+  // after the browser has looked for the link's target, so the page goes there
+  // itself once everything that moves them (the apps, prices, this machine's
+  // architecture) has rendered, unless the visitor has scrolled meanwhile. It
+  // jumps there, where store.css's smooth scrolling would glide past every
+  // card above it.
+  function showLinkedApp() {
+    let id = '';
+    try {
+      id = decodeURIComponent(location.hash.slice(1));
+    } catch {
+      return; // a malformed link
+    }
+    const target = id.startsWith('app-') && document.getElementById(id);
+    if (!target || window.scrollY > 0) return;
+    const root = document.documentElement;
+    root.style.scrollBehavior = 'auto';
+    target.scrollIntoView();
+    root.style.scrollBehavior = '';
+  }
+
   function setup() {
     brand();
     $$('[data-lang]').forEach((button) =>
       button.addEventListener('click', () => {
         lang = button.dataset.lang;
         saved.set(LANG_KEY, lang);
+        // The pick is remembered now; a ?lang left in the address would undo it on reload.
+        const url = new URL(location.href);
+        if (url.searchParams.has('lang')) {
+          url.searchParams.delete('lang');
+          history.replaceState(history.state, '', url);
+        }
         translate();
         render();
       }),
@@ -930,15 +965,17 @@
     });
 
     translate();
-    load();
-    loadProducts().then(() => {
-      if (apps) render();
-    });
-    detectArch().then((arch) => {
-      system.arch = arch;
-      translate();
-      render();
-    });
+    Promise.all([
+      load(),
+      loadProducts().then(() => {
+        if (apps) render();
+      }),
+      detectArch().then((arch) => {
+        system.arch = arch;
+        translate();
+        render();
+      }),
+    ]).then(showLinkedApp);
   }
 
   setup();

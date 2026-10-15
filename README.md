@@ -97,7 +97,7 @@ GET /store/apps?channel=stable&owner=admin
 
 `channel` defaults to `stable`, and `owner` to `STORE_OWNER`, then `admin`. Apps with nothing published on the channel are left out, and so are update metadata files (blockmaps, `latest*.yml`, signatures). With `owner` given, the answer also names the `account` and, on a plan with store branding, carries its `profile`; an account that doesn't exist is a 404.
 
-[`store/`](store) is a page for people built on it: the latest release, every app with its installer for the visitor's system first, sizes and SHA-256 checksums, install steps per system, in Vietnamese or English. It is static; [`store/config.js`](store/config.js) sets its name, logo, texts, links and the API's address. At `/@<account>/` the same page shows one account's apps, under that account's profile when its plan allows.
+[`store/`](store) is a page for people built on it: the latest release, every app with its installer for the visitor's system first, sizes and SHA-256 checksums, install steps per system, in Vietnamese or English. It is static; [`store/config.js`](store/config.js) sets its name, logo, texts, links and the API's address. At `/@<account>/` the same page shows one account's apps, under that account's profile when its plan allows. A link can add `?lang=vi` or `?lang=en` to open the page in that language for the visit (only a pick on the page's switcher is remembered), and `#app-<name>` to open it at that app's card.
 
 ## Deploying to a server
 
@@ -115,6 +115,8 @@ DOMAIN=store.example.com DEPLOY_HOST=203.0.113.10 deploy/deploy.sh
 ```
 
 The domain has to point at the server first: the script gets its HTTPS certificate from Let's Encrypt. It installs Docker, starts the API, MongoDB, Redis and Garage with [`deploy/compose.yaml`](deploy/compose.yaml) (none of them reachable from outside), runs the migrations, and builds the dashboard for this API under `/registry/`. Secrets are made on the server on the first run, in `/opt/dpappregistry/.env`, and kept. Run the same command again to deploy a new version.
+
+`deploy/deploy.sh store` publishes only the store page, `store/` with [`deploy/store-config.js`](deploy/store-config.js) as its `config.js`, in a few seconds. The containers, migrations, nginx, the certificate and the dashboard stay as they are, so it is the way to ship a change to the page or its texts.
 
 The first admin signs up in the dashboard with the server's `API_KEY`. Apps they create appear in the store once a release is published.
 

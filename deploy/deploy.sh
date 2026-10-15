@@ -6,6 +6,8 @@
 #   https://<domain>/api/        the API: update checks, uploads
 #
 #   deploy/deploy.sh                  set up the server if needed, then build and start everything
+#   deploy/deploy.sh store            publish only the store page: store/, with deploy/store-config.js
+#                                     as its config.js (nothing else on the server changes)
 #   deploy/deploy.sh logs             follow the API's logs
 #   deploy/deploy.sh backup           back up now (the server also does it every night)
 #   deploy/deploy.sh restore-test     restore the newest backup into a scratch MongoDB and compare
@@ -69,10 +71,17 @@ stack() {
     exit 1"
 }
 
+# The store page: store/, with deploy/store-config.js as its config.js. The
+# first rsync leaves the live config.js alone, so the page never runs on
+# store/'s generic one, and rsync swaps each changed file in whole.
+store_page() {
+  rsync -rlt --delete --exclude /config.js -e "ssh ${SSH_OPTS[*]}" "$ROOT/store/" "$LOGIN:$WEB_DIR/store/"
+  rsync -t -e "ssh ${SSH_OPTS[*]}" "$ROOT/deploy/store-config.js" "$LOGIN:$WEB_DIR/store/config.js"
+}
+
 # The store page, and the upstream dashboard built for this API under /registry/.
 pages() {
-  rsync -rlt --delete -e "ssh ${SSH_OPTS[*]}" "$ROOT/store/" "$LOGIN:$WEB_DIR/store/"
-  scp -q "${SSH_OPTS[@]}" "$ROOT/deploy/store-config.js" "$LOGIN:$WEB_DIR/store/config.js"
+  store_page
   rsync -rlt --delete -e "ssh ${SSH_OPTS[*]}" "$ROOT/deploy/dashboard-patch.cjs" "$ROOT/deploy/dashboard" "$LOGIN:$APP_DIR/dashboard-patch/"
   remote "rm -f $APP_DIR/dashboard-patch.cjs && docker pull -q $DASHBOARD_IMAGE >/dev/null && docker run --rm \
     -e VITE_API_URL=https://$DOMAIN/api \
@@ -147,6 +156,10 @@ case "${1:-deploy}" in
     pages
     echo "Store: https://$DOMAIN/  Dashboard: https://$DOMAIN/registry/"
     ;;
+  store)
+    store_page
+    echo "Store: https://$DOMAIN/"
+    ;;
   logs)
     remote "cd $APP_DIR && docker compose logs -f --tail=100 backend"
     ;;
@@ -160,7 +173,7 @@ case "${1:-deploy}" in
     operator "$@"
     ;;
   *)
-    sed -n '2,21p' "$0" | cut -c 3- >&2
+    sed -n '2,/^$/p' "$0" | cut -c 3- >&2
     exit 64
     ;;
 esac

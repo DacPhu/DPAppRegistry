@@ -71,7 +71,7 @@ window.STORE_CONFIG = {
       },
     },
     'latex-tool': {
-      title: 'LaTeX Tool',
+      title: 'Latex Tool',
       tagline: {
         vi: 'Trình soạn LaTeX cộng tác trên trình duyệt và máy tính',
         en: 'A collaborative LaTeX editor for the browser and the desktop',
