@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # Deploys DPAppRegistry to one domain on a server:
 #
-#   https://<domain>/            the store, for users
-#   https://<domain>/registry/   the dashboard, for admins
+#   https://<domain>/            the dashboard, for admins
 #   https://<domain>/api/        the API: update checks, uploads
+#   https://<domain>/files/      the builds
+#
+# With STORE=on, the store page takes https://<domain>/ and the dashboard moves
+# to https://<domain>/registry/.
 #
 #   deploy/deploy.sh                  set up the server if needed, then build and start everything
-#   deploy/deploy.sh store            publish only the store page: store/, with deploy/store-config.js
-#                                     as its config.js (nothing else on the server changes)
+#   deploy/deploy.sh web              nginx, the certificate and the pages, without rebuilding the API
+#   deploy/deploy.sh store            publish only the store page (STORE=on): store/, with
+#                                     deploy/store-config.js as its config.js
 #   deploy/deploy.sh logs             follow the API's logs
 #   deploy/deploy.sh backup           back up now (the server also does it every night)
 #   deploy/deploy.sh restore-test     restore the newest backup into a scratch MongoDB and compare
@@ -17,7 +21,7 @@
 #                                     revoke, pubkey (the public key DPFileSystem is built with)
 #   deploy/deploy.sh order …          the store's orders: list, show, fulfil, reconcile
 #
-# DEPLOY_HOST, DEPLOY_USER, DEPLOY_KEY and DOMAIN change where it goes.
+# DEPLOY_HOST, DEPLOY_USER, DEPLOY_KEY and DOMAIN change where it goes, and STORE what it serves.
 
 set -euo pipefail
 
@@ -25,6 +29,9 @@ HOST="${DEPLOY_HOST:-103.110.33.182}"
 LOGIN="${DEPLOY_USER:-root}@$HOST"
 KEY="${DEPLOY_KEY:-$HOME/.ssh/mitekbro_deploy}"
 DOMAIN="${DOMAIN:-registry.mitekbro.com}"
+# on: the store page at /, the dashboard at /registry/. off: the dashboard at /.
+STORE="${STORE:-off}"
+case "$STORE" in on | off) ;; *) echo "STORE is on or off, not $STORE." >&2; exit 1 ;; esac
 DASHBOARD_IMAGE=registry.hub.docker.com/ku9nov/faynosync-dashboard:latest
 APP_DIR=/opt/dpappregistry
 WEB_DIR=/var/www/dpappregistry
@@ -37,7 +44,7 @@ remote() { ssh "${SSH_OPTS[@]}" "$LOGIN" "$@"; }
 setup() {
   remote 'rm -rf /tmp/dpappregistry-setup && mkdir -p /tmp/dpappregistry-setup'
   scp -q "${SSH_OPTS[@]}" "$ROOT"/deploy/nginx/*.conf "$ROOT/deploy/compose.yaml" "$ROOT/deploy/backup.sh" "$LOGIN:/tmp/dpappregistry-setup/"
-  remote "bash -s -- '$DOMAIN'" <"$ROOT/deploy/server-setup.sh"
+  remote "bash -s -- '$DOMAIN' '$STORE'" <"$ROOT/deploy/server-setup.sh"
 }
 
 # HTTPS for the domain, once it points only at this server.
@@ -79,15 +86,28 @@ store_page() {
   rsync -t -e "ssh ${SSH_OPTS[*]}" "$ROOT/deploy/store-config.js" "$LOGIN:$WEB_DIR/store/config.js"
 }
 
-# The store page, and the upstream dashboard built for this API under /registry/.
+# The upstream dashboard, built for this API: beside the store page, under
+# /registry/, or at the root without one.
 pages() {
-  store_page
+  local base=/
+  if [ "$STORE" = on ]; then
+    store_page
+    base=/registry/
+  fi
   rsync -rlt --delete -e "ssh ${SSH_OPTS[*]}" "$ROOT/deploy/dashboard-patch.cjs" "$ROOT/deploy/dashboard" "$LOGIN:$APP_DIR/dashboard-patch/"
   remote "rm -f $APP_DIR/dashboard-patch.cjs && docker pull -q $DASHBOARD_IMAGE >/dev/null && docker run --rm \
     -e VITE_API_URL=https://$DOMAIN/api \
     -v $APP_DIR/dashboard-patch:/patch:ro -v $WEB_DIR/registry:/out \
-    --entrypoint sh $DASHBOARD_IMAGE -c 'node /patch/dashboard-patch.cjs && npx vite build --base=/registry/ --outDir /tmp/dist --logLevel error \
+    --entrypoint sh $DASHBOARD_IMAGE -c 'node /patch/dashboard-patch.cjs && npx vite build --base=$base --outDir /tmp/dist --logLevel error \
       && cp LICENSE /tmp/dist/LICENSE.txt && rm -rf /out/* && cp -r /tmp/dist/. /out/'"
+}
+
+urls() {
+  if [ "$STORE" = on ]; then
+    echo "Store: https://$DOMAIN/  Dashboard: https://$DOMAIN/registry/"
+  else
+    echo "Dashboard: https://$DOMAIN/"
+  fi
 }
 
 # The backend's operator commands (DPAppRegistry account|usage …). A --file goes
@@ -154,9 +174,20 @@ case "${1:-deploy}" in
     setup
     stack
     pages
-    echo "Store: https://$DOMAIN/  Dashboard: https://$DOMAIN/registry/"
+    urls
+    ;;
+  web)
+    setup
+    certificate
+    setup
+    pages
+    urls
     ;;
   store)
+    if [ "$STORE" != on ]; then
+      echo "There is no store page: STORE=on serves one." >&2
+      exit 1
+    fi
     store_page
     echo "Store: https://$DOMAIN/"
     ;;

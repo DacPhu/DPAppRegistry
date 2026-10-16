@@ -105,18 +105,19 @@ GET /store/apps?channel=stable&owner=admin
 
 | Path | What |
 |---|---|
-| `/` | the store, for users |
-| `/registry/` | the dashboard, for admins |
+| `/` | the dashboard, for admins |
 | `/api/` | the API: update checks and uploads |
 | `/files/` | public builds |
 
+With `STORE=on`, the store page for users takes `/` and the dashboard moves to `/registry/`.
+
 ```bash
-DOMAIN=store.example.com DEPLOY_HOST=203.0.113.10 deploy/deploy.sh
+DOMAIN=registry.example.com DEPLOY_HOST=203.0.113.10 deploy/deploy.sh
 ```
 
-The domain has to point at the server first: the script gets its HTTPS certificate from Let's Encrypt. It installs Docker, starts the API, MongoDB, Redis and Garage with [`deploy/compose.yaml`](deploy/compose.yaml) (none of them reachable from outside), runs the migrations, and builds the dashboard for this API under `/registry/`. Secrets are made on the server on the first run, in `/opt/dpappregistry/.env`, and kept. Run the same command again to deploy a new version.
+The domain has to point at the server first: the script gets its HTTPS certificate from Let's Encrypt. It installs Docker, starts the API, MongoDB, Redis and Garage with [`deploy/compose.yaml`](deploy/compose.yaml) (none of them reachable from outside), runs the migrations, and builds the dashboard for this API, at `/` or, with `STORE=on`, under `/registry/`. Secrets are made on the server on the first run, in `/opt/dpappregistry/.env`, and kept. Run the same command again to deploy a new version.
 
-`deploy/deploy.sh store` publishes only the store page, `store/` with [`deploy/store-config.js`](deploy/store-config.js) as its `config.js`, in a few seconds. The containers, migrations, nginx, the certificate and the dashboard stay as they are, so it is the way to ship a change to the page or its texts.
+`deploy/deploy.sh web` applies nginx, the certificate and the pages without rebuilding the API. With `STORE=on`, `deploy/deploy.sh store` publishes only the store page, `store/` with [`deploy/store-config.js`](deploy/store-config.js) as its `config.js`, in a few seconds. The containers, migrations, nginx, the certificate and the dashboard stay as they are, so it is the way to ship a change to the page or its texts.
 
 The first admin signs up in the dashboard with the server's `API_KEY`. Apps they create appear in the store once a release is published.
 

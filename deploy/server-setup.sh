@@ -8,6 +8,9 @@
 set -euo pipefail
 
 DOMAIN=$1
+# on: the store page at /, the dashboard at /registry/ (nginx/store.conf).
+# off: the dashboard at / (nginx/registry.conf).
+STORE=${2:-on}
 APP_DIR=/opt/dpappregistry
 WEB_DIR=/var/www/dpappregistry
 STAGE=/tmp/dpappregistry-setup
@@ -175,7 +178,9 @@ install -m 644 "$STAGE/files.conf" /etc/nginx/snippets/dpappregistry-files.conf
 # The site needs its certificate; until deploy.sh gets one, the domain is
 # left to the server's default site, which answers the certificate check.
 if [ -f "$CERT" ]; then
-  sed "s/{{DOMAIN}}/$DOMAIN/g" "$STAGE/store.conf" >/etc/nginx/sites-available/dpappregistry
+  site=store.conf
+  [ "$STORE" = off ] && site=registry.conf
+  sed "s/{{DOMAIN}}/$DOMAIN/g" "$STAGE/$site" >/etc/nginx/sites-available/dpappregistry
   ln -sfn /etc/nginx/sites-available/dpappregistry /etc/nginx/sites-enabled/dpappregistry
 else
   rm -f /etc/nginx/sites-enabled/dpappregistry

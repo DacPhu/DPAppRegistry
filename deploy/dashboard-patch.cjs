@@ -1,8 +1,8 @@
 // Changes the upstream dashboard before deploy.sh builds it, inside the build
 // container, so the upstream source is never changed:
 //
-// - it runs under a sub-path (vite --base=/registry/): its routes, its sign-out
-//   redirect and its sidebar logo use the base instead of "/";
+// - it can run under a sub-path (vite --base=/registry/ beside the store page):
+//   its routes, its sign-out redirect and its sidebar logo use the base instead of "/";
 // - the tab shows this project's name;
 // - an upload shows its progress (bytes sent, speed, time left) and can be
 //   cancelled while the files are still going up;
