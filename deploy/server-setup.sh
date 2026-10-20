@@ -22,7 +22,7 @@ STAGE=/tmp/dpappregistry-setup
 CERT=/etc/letsencrypt/live/$DOMAIN/fullchain.pem
 
 missing=()
-for pkg in docker.io docker-compose-v2 docker-buildx nginx certbot rsync curl logrotate; do
+for pkg in docker.io docker-compose-v2 docker-buildx nginx certbot rsync curl logrotate iproute2; do
   dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
 done
 if [ ${#missing[@]} -gt 0 ]; then
@@ -32,6 +32,18 @@ if [ ${#missing[@]} -gt 0 ]; then
   apt-get install -y -qq "${missing[@]}" >/dev/null
 fi
 systemctl enable --now docker >/dev/null 2>&1
+
+# The admin site's port must be free or nginx's, checked before anything is
+# changed: nginx -t doesn't try to bind it, and a reload that can't bind it
+# reports success while nginx goes on with its old configuration.
+if [ "$ADMIN" = tunnel ]; then
+  others=$(ss -Hltnp 'sport = :3310' | grep -v '"nginx"' || true)
+  if [ -n "$others" ]; then
+    echo "Port 3310, which the admin site needs, is taken by something other than nginx; nothing was changed:" >&2
+    echo "$others" >&2
+    exit 1
+  fi
+fi
 
 mkdir -p "$APP_DIR" "$WEB_DIR/store" "$WEB_DIR/registry" /var/www/letsencrypt
 chmod 700 "$APP_DIR"
@@ -57,12 +69,21 @@ EOF
   echo "Made new secrets in $APP_DIR/.env"
 fi
 sed -i "s/^STORE_DOMAIN=.*/STORE_DOMAIN=$DOMAIN/" "$APP_DIR/.env"
-# Where compose.yaml publishes the API's metrics: on the gateway of the infra
-# repo's Docker network, where its Prometheus scrapes them while the API stays
-# off that network; on the loopback when there is none. Found again every run,
-# as the network can be recreated with another address.
-metrics_ip=$(docker network inspect infra --format '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null || true)
-[[ $metrics_ip =~ ^[0-9]+(\.[0-9]+){3}$ ]] || metrics_ip=127.0.0.1
+# Where compose.yaml publishes the API's metrics: on the IPv4 gateway of the
+# infra repo's Docker network, where its Prometheus scrapes them while the API
+# stays off that network; on the loopback when there is none. Found again every
+# run, as the network can be recreated with another address.
+metrics_ip=
+for gateway in $(docker network inspect infra --format '{{range .IPAM.Config}}{{.Gateway}} {{end}}' 2>/dev/null || true); do
+  if [[ $gateway =~ ^[0-9]+(\.[0-9]+){3}$ ]]; then
+    metrics_ip=$gateway
+    break
+  fi
+done
+if [ -z "$metrics_ip" ]; then
+  echo "WARNING: no Docker network \"infra\" with an IPv4 gateway. The API's metrics go to 127.0.0.1:9326, where Prometheus can't scrape them; once the infra repo's network exists, run this again." >&2
+  metrics_ip=127.0.0.1
+fi
 sed -i '/^METRICS_PUBLISH=/d' "$APP_DIR/.env"
 echo "METRICS_PUBLISH=$metrics_ip:9326" >>"$APP_DIR/.env"
 # The key that signs the licenses the store sells, made once: keys verify
@@ -215,8 +236,10 @@ cat >/etc/logrotate.d/dpappregistry-nginx <<'EOF'
 EOF
 
 # nginx also serves the server's other sites (mitekbro.com). Every nginx file
-# changed below is copied first; if a step fails or nginx refuses the result,
-# the copies go back and nginx is not reloaded, so those sites never notice.
+# changed below is copied first. If a step fails, nginx refuses the result, or
+# the admin site doesn't answer after the reload, the copies go back, and nginx
+# is reloaded with them if it had been already: a file left behind that nginx
+# can't run would only show at its next restart, and stop every site.
 snippets=/etc/nginx/snippets
 site=/etc/nginx/sites-available/dpappregistry
 admin_site=/etc/nginx/sites-available/dpappregistry-admin
@@ -234,6 +257,7 @@ for file in "${nginx_files[@]}"; do
     cp -a "$file" "$saved$file"
   fi
 done
+reloaded=
 restore_nginx() {
   local file
   for file in "${nginx_files[@]}"; do
@@ -243,7 +267,13 @@ restore_nginx() {
     fi
   done
   rm -rf "$saved"
-  echo "nginx's previous files are back, and it was not reloaded." >&2
+  if [ -z "$reloaded" ]; then
+    echo "nginx's previous files are back, and it was not reloaded." >&2
+  elif nginx -t -q && systemctl reload nginx; then
+    echo "nginx's previous files are back, and it was reloaded with them." >&2
+  else
+    echo "nginx's previous files are back, but reloading nginx with them failed (see above)." >&2
+  fi
 }
 trap restore_nginx EXIT
 
@@ -296,26 +326,30 @@ else
 fi
 
 nginx -t -q
-trap - EXIT
-rm -rf "$saved" "$STAGE"
+reloaded=1
 systemctl reload nginx
 
-# The admin site answers on the server's loopback, where the SSH tunnel ends.
-# nginx opens its port while it reloads, which takes a moment. Before deploy.sh
-# has built the dashboard (on a new server), any answer from nginx will do.
+# The admin site must answer on the server's loopback, where the SSH tunnel
+# ends, from nginx itself: a reload that can't bind the port goes on with the
+# old configuration all the same. nginx takes a moment to apply a reload.
+# Before deploy.sh has built the dashboard (on a new server), any answer from
+# nginx will do.
 if [ "$ADMIN" = tunnel ]; then
   fail=(-f)
   if [ ! -f "$WEB_DIR/registry/index.html" ]; then
     fail=()
   fi
   for attempt in $(seq 10); do
-    if curl "${fail[@]}" -sS -o /dev/null http://127.0.0.1:3310/; then
+    listeners=$(ss -Hltnp 'sport = :3310')
+    if [[ $listeners == *'"nginx"'* ]] && curl "${fail[@]}" -sS --max-time 5 -o /dev/null http://127.0.0.1:3310/; then
       break
     fi
     if [ "$attempt" = 10 ]; then
-      echo "The admin site doesn't answer at http://127.0.0.1:3310/." >&2
+      echo "The admin site doesn't answer at http://127.0.0.1:3310/ from nginx." >&2
       exit 1
     fi
     sleep 1
   done
 fi
+trap - EXIT
+rm -rf "$saved" "$STAGE"
