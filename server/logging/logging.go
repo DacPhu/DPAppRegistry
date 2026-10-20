@@ -27,20 +27,23 @@ const keepDays = 14
 // lines are http's.
 const loggerField = "logger"
 
+// Where every line goes, whatever happens to the files.
+var stderr io.Writer = os.Stderr
+
 // Setup sends the server's log lines to stderr in Formatter's format and,
-// when dir is set, to dir/api-YYYYMMDD.log as well. A file it can't open costs
-// the file, never the server: the lines still reach stderr.
+// when dir is set, to dir/api-YYYYMMDD.log as well. A file it can't open or
+// write costs the file, never the server: the lines still reach stderr, and
+// the file is tried again every minute.
 func Setup(dir string) {
 	logrus.SetFormatter(Formatter{})
 	if dir == "" {
 		return
 	}
-	file, err := openDaily(dir, service, keepDays)
-	if err != nil {
-		logrus.Warnf("Logging to stderr only: %v", err)
-		return
+	file := newDailyFile(dir, service, keepDays)
+	if err := file.start(); err != nil {
+		logrus.Warnf("Logging to stderr only, trying the log file again every minute: %v", err)
 	}
-	logrus.SetOutput(io.MultiWriter(os.Stderr, file))
+	logrus.SetOutput(io.MultiWriter(stderr, file))
 }
 
 // Formatter writes each entry as one line:
@@ -50,9 +53,10 @@ func Setup(dir string) {
 // The time is UTC to the second, the level DEBUG, INFO, WARNING, ERROR or
 // CRITICAL, then the logger. The shipper takes a line that starts with a
 // timestamp for the start of an entry, and a message can carry a client's
-// text, newlines included: every later line of a message is indented, so it
-// can't pass for an entry of its own. Fields follow sorted, quoted when they
-// need it.
+// text, control characters included: every later line of a message is
+// indented, so it can't pass for an entry of its own, and every other control
+// character is escaped (\r, \t, \x1b...), so none can rewrite a line in a
+// terminal following the log. Fields follow sorted, quoted when they need it.
 type Formatter struct{}
 
 func (Formatter) Format(entry *logrus.Entry) ([]byte, error) {
@@ -68,7 +72,17 @@ func (Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 	line.WriteString(logger)
 	if message := strings.TrimRight(entry.Message, "\r\n"); message != "" {
 		line.WriteByte(' ')
-		line.WriteString(strings.ReplaceAll(message, "\n", "\n  "))
+		for _, r := range message {
+			switch {
+			case r == '\n':
+				line.WriteString("\n  ")
+			case unicode.IsControl(r):
+				escaped := strconv.QuoteRune(r)
+				line.WriteString(escaped[1 : len(escaped)-1])
+			default:
+				line.WriteRune(r)
+			}
+		}
 	}
 	keys := make([]string, 0, len(entry.Data))
 	for key := range entry.Data {

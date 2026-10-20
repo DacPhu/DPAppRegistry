@@ -11,6 +11,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// How long a log file that couldn't be opened or written is left alone before
+// the next try. Every line goes to stderr meanwhile.
+const retryEvery = time.Minute
+
 // dailyFile appends to dir/<name>-YYYYMMDD.log, a new file each UTC day, and
 // removes the files of all but the newest keep days. Nothing is ever renamed:
 // the shipper reads each file to its end and picks up the next one by itself.
@@ -19,61 +23,92 @@ type dailyFile struct {
 	keep      int
 	now       func() time.Time
 
-	mu   sync.Mutex
-	day  string
-	file *os.File
+	mu      sync.Mutex
+	day     string
+	file    *os.File
+	retryAt time.Time // no try to open a file before then
+	failing bool      // no line has reached a file since the last warning
 }
 
-// openDaily opens today's file, making dir if it is missing.
-func openDaily(dir, name string, keep int) (*dailyFile, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, err
+func newDailyFile(dir, name string, keep int) *dailyFile {
+	return &dailyFile{dir: dir, name: name, keep: keep, now: time.Now}
+}
+
+// start opens today's file. One it can't open is tried again by Write; the
+// caller warns about this first failure.
+func (w *dailyFile) start() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	now := w.now()
+	if err := w.open(now); err != nil {
+		w.retryAt = now.Add(retryEvery)
+		w.failing = true
+		return err
 	}
-	w := &dailyFile{dir: dir, name: name, keep: keep, now: time.Now}
-	if err := w.open(w.now()); err != nil {
-		return nil, err
-	}
-	return w, nil
+	return nil
 }
 
 // Write appends p to the day's file, moving to a new one at midnight UTC. It
-// never fails: a file that can't be opened or written is given up until the
-// next day, with a warning on stderr, where every line goes as well.
+// never fails, since every line goes to stderr too: a file that can't be
+// opened or written is tried again at most once a minute, with one warning
+// per outage and a note once a line reaches a file again.
 func (w *dailyFile) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	now := w.now()
-	if now.UTC().Format("20060102") != w.day {
+	if w.file != nil && now.UTC().Format("20060102") != w.day {
+		w.close()
+	}
+	if w.file == nil {
+		if now.Before(w.retryAt) {
+			return len(p), nil
+		}
 		if err := w.open(now); err != nil {
-			warn("Logging to stderr only until tomorrow: %v", err)
+			w.fail(now, err)
+			return len(p), nil
 		}
 	}
-	if w.file != nil {
-		if _, err := w.file.Write(p); err != nil {
-			warn("Logging to stderr only until tomorrow: %v", err)
-			w.file.Close()
-			w.file = nil
-		}
+	if _, err := w.file.Write(p); err != nil {
+		w.close()
+		w.fail(now, err)
+		return len(p), nil
+	}
+	if w.failing {
+		w.failing = false
+		note(logrus.InfoLevel, "Writing the log file in %s again", w.dir)
 	}
 	return len(p), nil
 }
 
-// open moves to now's file and removes the ones too old to keep. The day is
-// taken first, so a file that can't be opened is tried again tomorrow, not at
-// every line.
-func (w *dailyFile) open(now time.Time) error {
-	w.day = now.UTC().Format("20060102")
-	if w.file != nil {
-		w.file.Close()
-		w.file = nil
+// fail leaves the file alone for retryEvery, warning only at an outage's
+// first failure.
+func (w *dailyFile) fail(now time.Time, err error) {
+	w.retryAt = now.Add(retryEvery)
+	if !w.failing {
+		w.failing = true
+		note(logrus.WarnLevel, "Logging to stderr only, trying the log file again every minute: %v", err)
 	}
-	file, err := os.OpenFile(filepath.Join(w.dir, w.name+"-"+w.day+".log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+}
+
+func (w *dailyFile) close() {
+	_ = w.file.Close()
+	w.file = nil
+}
+
+// open moves to now's file, making its folder if it is missing, and removes
+// the files too old to keep.
+func (w *dailyFile) open(now time.Time) error {
+	if err := os.MkdirAll(w.dir, 0o755); err != nil {
+		return err
+	}
+	day := now.UTC().Format("20060102")
+	file, err := os.OpenFile(filepath.Join(w.dir, w.name+"-"+day+".log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return err
 	}
 	// Readable by the shipper, which runs as another user, whatever the umask.
 	_ = file.Chmod(0o644)
-	w.file = file
+	w.file, w.day = file, day
 	w.prune(now)
 	return nil
 }
@@ -89,9 +124,9 @@ func (w *dailyFile) prune(now time.Time) {
 	}
 }
 
-// warn writes a warning straight to stderr: Write runs inside logrus, under
-// its lock.
-func warn(format string, args ...any) {
-	line, _ := Formatter{}.Format(&logrus.Entry{Time: time.Now(), Level: logrus.WarnLevel, Message: fmt.Sprintf(format, args...)})
-	_, _ = os.Stderr.Write(line)
+// note writes a line straight to stderr: Write runs inside logrus, under its
+// lock.
+func note(level logrus.Level, format string, args ...any) {
+	line, _ := Formatter{}.Format(&logrus.Entry{Time: time.Now(), Level: level, Message: fmt.Sprintf(format, args...)})
+	_, _ = stderr.Write(line)
 }

@@ -1,7 +1,7 @@
 package logging
 
 import (
-	"io"
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,20 +15,53 @@ import (
 func accessRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.Use(AccessLog(), gin.RecoveryWithWriter(io.Discard))
+	router.Use(AccessLog(), Recovery())
 	router.GET("/apps/:id", func(c *gin.Context) { c.String(http.StatusOK, "hello") })
 	router.GET("/health", func(c *gin.Context) { c.Status(http.StatusOK) })
 	router.GET("/boom", func(c *gin.Context) { panic("boom") })
+	router.GET("/boom/:id", func(c *gin.Context) { panic("boom " + c.Param("id")) })
 	return router
 }
 
-func serve(router *gin.Engine, target string, header http.Header) {
+func serve(router *gin.Engine, target string, header http.Header) int {
 	request := httptest.NewRequest(http.MethodGet, target, nil)
 	request.RemoteAddr = "203.0.113.9:4000"
 	for name, values := range header {
 		request.Header[name] = values
 	}
-	router.ServeHTTP(httptest.NewRecorder(), request)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	return recorder.Code
+}
+
+// A panic is an ERROR in this log, with the route and the stack, and never
+// the query string or the headers; the access line still shows its 500.
+func TestRecoveryLogsAPanicWithoutTheRequestsSecrets(t *testing.T) {
+	logs := captureLogs(t)
+	var ginOutput bytes.Buffer
+	previous := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &ginOutput
+	t.Cleanup(func() { gin.DefaultErrorWriter = previous })
+
+	code := serve(accessRouter(), "/boom/7?key=secret-download-key", http.Header{
+		"X-Download-Token": {"secret-download-token"},
+		"Authorization":    {"Bearer secret-jwt"},
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, code)
+	entries := logs.String()
+	assert.Regexp(t, `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z ERROR api Panic answering GET /boom/:id: boom 7\n  goroutine `, entries)
+	assert.Contains(t, entries, "runtime/debug.Stack(")
+	assert.Contains(t, entries, " INFO http trace=- method=GET route=/boom/:id path=/boom/7 status=500 ")
+	for _, secret := range []string{"secret-download-key", "secret-download-token", "secret-jwt", "?key="} {
+		assert.NotContains(t, entries, secret)
+	}
+	for _, line := range strings.Split(strings.TrimSuffix(entries, "\n"), "\n")[1:] {
+		if !strings.Contains(line, " INFO http ") {
+			assert.NotRegexp(t, alloyFirstLine, line, "a line of the stack starts an entry")
+		}
+	}
+	assert.Empty(t, ginOutput.String(), "gin wrote the panic past this log")
 }
 
 func TestAccessLogLine(t *testing.T) {

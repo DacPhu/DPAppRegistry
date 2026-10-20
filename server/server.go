@@ -37,10 +37,10 @@ func StartServer(config *viper.Viper) {
 			logrus.Fatalf("Invalid TRUSTED_PROXIES: %v", err)
 		}
 	}
-	// gin's own access log would write query strings, which carry tokens; this
-	// one doesn't. The access log and the metrics come first so they see each
-	// final status, including the 500 Recovery answers a panic with.
-	router.Use(logging.AccessLog(), metrics.Middleware(), gin.Recovery())
+	// gin's own access log and Recovery would write query strings, which carry
+	// tokens; these don't. The access log and the metrics come first so they see
+	// each final status, including the 500 Recovery answers a panic with.
+	router.Use(logging.AccessLog(), metrics.Middleware(), logging.Recovery())
 
 	client, configDB := db.ConnectToDatabase(mongoUrl)
 

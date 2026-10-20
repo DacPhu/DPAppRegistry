@@ -161,9 +161,15 @@ The server writes one line per entry, to stderr and, with `LOG_DIR` set, to `$LO
 2026-10-20T12:00:01Z INFO http trace=1a41c953cecaa336396fdb0bdec3b99c method=GET route=/checkVersion path=/checkVersion status=200 ms=12 bytes=123 ip=203.0.113.9
 ```
 
-The time is UTC, and the level DEBUG, INFO, WARNING, ERROR or CRITICAL. The `http` lines are the requests, without their query strings, which carry tokens; `/health` isn't logged. `trace` is the request's `X-Request-ID` when it looks like an id. A message's later lines are indented, so a client's text can't pass for an entry of its own. When `LOG_DIR` can't be written, the server logs to stderr only. `GIN_MODE=release` turns off gin's debug output. Migrations and the operator commands log as before.
+The time is UTC, and the level DEBUG, INFO, WARNING, ERROR or CRITICAL. The `http` lines are the requests, without their query strings, which carry tokens; `/health` isn't logged. `trace` is the request's `X-Request-ID` when it looks like an id. A message's later lines are indented and its other control characters escaped (`\r`, `\t`, `\x1b`…), so a client's text can't pass for an entry of its own or rewrite a line in a terminal. A panic is an ERROR with the route and the stack, never the query string or the headers. When `LOG_DIR` can't be written, the lines go to stderr only, with one warning, and the file is tried again every minute. `GIN_MODE=release` turns off gin's debug output. Migrations and the operator commands log as before.
 
 On the server, `LOG_DIR` is the `dpappregistry_app_logs` volume, and nginx writes the public site's requests to `/var/log/nginx/sites/dpappregistry.access.log`, one JSON object each and no query strings, rotated nightly with 3 kept. nginx sends the API its own `X-Request-ID` and logs it as `request_id`, so one id finds a request in both logs. The infra repo's Alloy ships both to Loki. The container's own output (`deploy/deploy.sh logs`) is kept to 5 files of 10 MB.
+
+### Known limits
+
+- **Trailing-slash redirects are neither logged nor counted.** gin answers a path that matches a route but for its trailing slash (`GET /api/checkVersion/` gets a 301) before any middleware runs, so no access line and no metric sees it. `RedirectTrailingSlash` stays on all the same: installed desktop apps may depend on it.
+- **nginx's nightly rotation can lose a few access lines.** logrotate renames the file and has nginx reopen it; under load, the last lines written around the reopen can miss the shipper.
+- **An Alloy restart under traffic can drop one entry of the API's log.** Alloy holds an entry back until the next one starts, so its continuation lines (a stack trace) stay with it. An entry still held when Alloy stops is lost, at most one.
 
 ## Plans
 

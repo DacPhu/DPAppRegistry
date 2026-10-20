@@ -112,6 +112,18 @@ func TestFormatterKeepsAClientsNewlinesInsideTheEntry(t *testing.T) {
 	assert.Contains(t, line, `error="x\n2026-10-20T12:00:00Z CRITICAL api forged" name="a=b c"`)
 }
 
+// Every other control character in a message is escaped: a carriage return
+// could overwrite the line in a terminal following the log, and ESC repaint it.
+func TestFormatterEscapesControlCharacters(t *testing.T) {
+	line := format(t, logrus.WarnLevel, "a\rb\tc\x1b[2Kd\x7fe\u0085f\x00g\n\r2026-10-20T12:00:00Z CRITICAL api forged", nil)
+	assert.Equal(t, "2026-10-20T12:00:00Z WARNING api a\\rb\\tc\\x1b[2Kd\\x7fe\\u0085f\\x00g\n  \\r2026-10-20T12:00:00Z CRITICAL api forged\n", line)
+	for _, r := range strings.TrimSuffix(line, "\n") {
+		if r != '\n' {
+			assert.False(t, r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0), "control character %q left in %q", r, line)
+		}
+	}
+}
+
 func TestDailyFileNamesRotatesAndPrunes(t *testing.T) {
 	dir := t.TempDir()
 	// A file 19 days old and one 13 days old, and files that aren't the API's daily ones.
@@ -157,20 +169,77 @@ func TestDailyFileNamesRotatesAndPrunes(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(dir, "api-20261007.log"), "now older than 14 days")
 }
 
-func TestDailyFileWriteNeverFails(t *testing.T) {
-	// A folder that isn't there: every line still reports written, for stderr's sake.
-	missing := filepath.Join(t.TempDir(), "missing")
-	w := &dailyFile{dir: missing, name: "api", keep: 14, now: func() time.Time { return evening }}
+// captureStderr points stderr, where every line goes and the file's own
+// warnings too, at a buffer until the test ends.
+func captureStderr(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	previous := stderr
+	t.Cleanup(func() { stderr = previous })
+	var buffer bytes.Buffer
+	stderr = &buffer
+	return &buffer
+}
+
+// A folder that can't be made (a file stands in its way): every line still
+// reports written, for stderr's sake, and the file is tried again once a
+// minute, with one warning for the whole outage.
+func TestDailyFileRetriesAnOpenOnceAMinute(t *testing.T) {
+	notes := captureStderr(t)
+	base := t.TempDir()
+	blocker := filepath.Join(base, "logs")
+	require.NoError(t, os.WriteFile(blocker, nil, 0o644))
+	now := evening
+	w := &dailyFile{dir: blocker, name: "api", keep: 14, now: func() time.Time { return now }}
+
 	for range 3 {
-		n, err := w.Write([]byte("line\n"))
+		n, err := w.Write([]byte("lost\n"))
 		assert.NoError(t, err)
 		assert.Equal(t, 5, n)
 	}
-	assert.NoDirExists(t, missing)
+	assert.Equal(t, 1, strings.Count(notes.String(), " WARNING api Logging to stderr only, trying the log file again every minute: "), notes.String())
+
+	// Fixed, but within the minute: not tried yet.
+	require.NoError(t, os.Remove(blocker))
+	now = evening.Add(59 * time.Second)
+	_, _ = w.Write([]byte("still lost\n"))
+	assert.NoDirExists(t, blocker)
+
+	now = evening.Add(time.Minute)
+	_, _ = w.Write([]byte("back\n"))
+	content, err := os.ReadFile(filepath.Join(blocker, "api-20261020.log"))
+	require.NoError(t, err)
+	assert.Equal(t, "back\n", string(content))
+	assert.Equal(t, 1, strings.Count(notes.String(), " WARNING api "), notes.String())
+	assert.Contains(t, notes.String(), " INFO api Writing the log file in "+blocker+" again\n")
+}
+
+// A write that fails (a full disk) gives the file up for a minute, not until
+// the next day.
+func TestDailyFileRetriesAfterAFailedWrite(t *testing.T) {
+	notes := captureStderr(t)
+	dir := t.TempDir()
+	now := evening
+	w := &dailyFile{dir: dir, name: "api", keep: 14, now: func() time.Time { return now }}
+	_, _ = w.Write([]byte("first\n"))
+
+	// The file breaks under it.
+	require.NoError(t, w.file.Close())
+	_, _ = w.Write([]byte("lost\n"))
+	now = evening.Add(30 * time.Second)
+	_, _ = w.Write([]byte("lost too\n"))
+	assert.Equal(t, 1, strings.Count(notes.String(), " WARNING api "), notes.String())
+
+	now = evening.Add(90 * time.Second)
+	_, _ = w.Write([]byte("back\n"))
+	content, err := os.ReadFile(filepath.Join(dir, "api-20261020.log"))
+	require.NoError(t, err)
+	assert.Equal(t, "first\nback\n", string(content))
+	assert.Contains(t, notes.String(), " INFO api Writing the log file in "+dir+" again\n")
 }
 
 func TestSetupWritesTheDaysFileAndStderr(t *testing.T) {
 	captureLogs(t)
+	written := captureStderr(t)
 	logrus.SetFormatter(&logrus.TextFormatter{})
 	dir := filepath.Join(t.TempDir(), "logs")
 	Setup(dir)
@@ -182,21 +251,25 @@ func TestSetupWritesTheDaysFileAndStderr(t *testing.T) {
 	require.NoError(t, err)
 	assert.Regexp(t, alloyFirstLine, string(content))
 	assert.True(t, strings.HasSuffix(string(content), " INFO api Telemetry allow-list reloaded after creating app\n"), string(content))
+	assert.Equal(t, string(content), written.String(), "stderr gets every line too")
 }
 
-// A LOG_DIR that can't be opened costs the file, not the server.
-func TestSetupFallsBackToStderrOnly(t *testing.T) {
+// A LOG_DIR that can't be opened costs the file, not the server: the lines go
+// to stderr, and the file is tried again later.
+func TestSetupFallsBackToStderr(t *testing.T) {
 	logs := captureLogs(t)
+	written := captureStderr(t)
 	logrus.SetFormatter(&logrus.TextFormatter{})
-	output := logrus.StandardLogger().Out
 	blocker := filepath.Join(t.TempDir(), "a-file")
 	require.NoError(t, os.WriteFile(blocker, nil, 0o644))
 
 	Setup(filepath.Join(blocker, "logs"))
-
-	assert.Same(t, output, logrus.StandardLogger().Out, "the output is left as it was")
 	assert.Regexp(t, alloyFirstLine, logs.String())
-	assert.Contains(t, logs.String(), " WARNING api Logging to stderr only: ")
+	assert.Contains(t, logs.String(), " WARNING api Logging to stderr only, trying the log file again every minute: ")
+
+	logrus.Info("Still logging")
+	assert.True(t, strings.HasSuffix(written.String(), " INFO api Still logging\n"), written.String())
+	assert.NotContains(t, written.String(), "WARNING", "the outage was already reported")
 }
 
 func TestSetupWithoutDirKeepsTheOutput(t *testing.T) {
