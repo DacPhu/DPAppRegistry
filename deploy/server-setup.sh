@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Prepares an Ubuntu or Debian server for DPAppRegistry: Docker, the stack's
-# settings and secrets, and the nginx site. deploy.sh runs it as root with the
-# domain as its argument, after copying compose.yaml and nginx/ to
-# /tmp/dpappregistry-setup. Safe to run again: it installs only what is
-# missing and never replaces secrets it made before.
+# settings and secrets, and the nginx sites. deploy.sh runs it as root with the
+# domain, STORE and ADMIN as its arguments, after copying compose.yaml and
+# nginx/ to /tmp/dpappregistry-setup. Safe to run again: it installs only what
+# is missing and never replaces secrets it made before.
 
 set -euo pipefail
 
@@ -11,13 +11,18 @@ DOMAIN=$1
 # on: the store page at /, the dashboard at /registry/ (nginx/store.conf).
 # off: the dashboard at / (nginx/registry.conf).
 STORE=${2:-on}
+# tunnel: the dashboard only on the admin site, 127.0.0.1:3310 (nginx/admin.conf),
+# which admins reach through an SSH tunnel; the public site answers 404 in its
+# place and for signing in and up. public: the dashboard on the public site.
+ADMIN=${3:-tunnel}
+case "$ADMIN" in tunnel | public) ;; *) echo "ADMIN is tunnel or public, not $ADMIN." >&2; exit 1 ;; esac
 APP_DIR=/opt/dpappregistry
 WEB_DIR=/var/www/dpappregistry
 STAGE=/tmp/dpappregistry-setup
 CERT=/etc/letsencrypt/live/$DOMAIN/fullchain.pem
 
 missing=()
-for pkg in docker.io docker-compose-v2 docker-buildx nginx certbot rsync; do
+for pkg in docker.io docker-compose-v2 docker-buildx nginx certbot rsync curl logrotate; do
   dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
 done
 if [ ${#missing[@]} -gt 0 ]; then
@@ -52,6 +57,14 @@ EOF
   echo "Made new secrets in $APP_DIR/.env"
 fi
 sed -i "s/^STORE_DOMAIN=.*/STORE_DOMAIN=$DOMAIN/" "$APP_DIR/.env"
+# Where compose.yaml publishes the API's metrics: on the gateway of the infra
+# repo's Docker network, where its Prometheus scrapes them while the API stays
+# off that network; on the loopback when there is none. Found again every run,
+# as the network can be recreated with another address.
+metrics_ip=$(docker network inspect infra --format '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null || true)
+[[ $metrics_ip =~ ^[0-9]+(\.[0-9]+){3}$ ]] || metrics_ip=127.0.0.1
+sed -i '/^METRICS_PUBLISH=/d' "$APP_DIR/.env"
+echo "METRICS_PUBLISH=$metrics_ip:9326" >>"$APP_DIR/.env"
 # The key that signs the licenses the store sells, made once: keys verify
 # against its public half, which release builds carry.
 if ! grep -q '^LICENSE_SIGNING_KEY=' "$APP_DIR/.env"; then
@@ -63,12 +76,19 @@ set -a
 set +a
 
 # The API's settings. Readable by the container's own user; the folder
-# around them is root's only.
+# around them is root's only. Prometheus's requests for /metrics arrive from a
+# Docker network, its own or, through Docker's NAT, this stack's gateway:
+# METRICS_ALLOW admits both and refuses any public address. LOG_DIR is the
+# app_logs volume, which the infra repo's Alloy reads.
 cat >"$APP_DIR/backend.env" <<EOF
 PORT=9000
 API_URL=https://$DOMAIN/api
 ALLOWED_CORS=https://$DOMAIN
 TRUSTED_PROXIES=172.30.0.1
+GIN_MODE=release
+METRICS_ADDR=:9326
+METRICS_ALLOW=172.16.0.0/12,127.0.0.0/8
+LOG_DIR=/app/logs
 MONGODB_URL=mongodb://root:$MONGO_ROOT_PASSWORD@db:27017/dpappregistry?authSource=admin
 API_KEY=$API_KEY
 JWT_SECRET=$JWT_SECRET
@@ -172,20 +192,130 @@ WantedBy=timers.target
 EOF
 systemctl daemon-reload
 systemctl enable --now dpappregistry-backup.timer >/dev/null 2>&1
-install -m 644 "$STAGE/api.conf" /etc/nginx/snippets/dpappregistry-api.conf
-install -m 644 "$STAGE/files.conf" /etc/nginx/snippets/dpappregistry-files.conf
 
-# The site needs its certificate; until deploy.sh gets one, the domain is
-# left to the server's default site, which answers the certificate check.
+# The public site's access log, one JSON object per request for the infra
+# repo's Alloy, which reads /var/log/nginx/sites. Every night logrotate renames
+# it, keeping 3, and nginx reopens its file at once; the renamed one is
+# compressed only the night after, so the shipper can finish reading it.
+install -d -m 755 /var/log/nginx/sites
+cat >/etc/logrotate.d/dpappregistry-nginx <<'EOF'
+/var/log/nginx/sites/dpappregistry.access.log {
+    daily
+    rotate 3
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 www-data adm
+    sharedscripts
+    postrotate
+        nginx -s reopen
+    endscript
+}
+EOF
+
+# nginx also serves the server's other sites (mitekbro.com). Every nginx file
+# changed below is copied first; if a step fails or nginx refuses the result,
+# the copies go back and nginx is not reloaded, so those sites never notice.
+snippets=/etc/nginx/snippets
+site=/etc/nginx/sites-available/dpappregistry
+admin_site=/etc/nginx/sites-available/dpappregistry-admin
+nginx_files=(
+  /etc/nginx/conf.d/dpappregistry-log-format.conf
+  "$snippets/dpappregistry-api.conf" "$snippets/dpappregistry-files.conf"
+  "$snippets/dpappregistry-dashboard.conf" "$snippets/dpappregistry-dashboard-hidden.conf"
+  "$site" /etc/nginx/sites-enabled/dpappregistry
+  "$admin_site" /etc/nginx/sites-enabled/dpappregistry-admin
+)
+saved=$(mktemp -d)
+for file in "${nginx_files[@]}"; do
+  if [ -e "$file" ] || [ -L "$file" ]; then
+    mkdir -p "$saved$(dirname "$file")"
+    cp -a "$file" "$saved$file"
+  fi
+done
+restore_nginx() {
+  local file
+  for file in "${nginx_files[@]}"; do
+    rm -f "$file"
+    if [ -e "$saved$file" ] || [ -L "$saved$file" ]; then
+      cp -a "$saved$file" "$file"
+    fi
+  done
+  rm -rf "$saved"
+  echo "nginx's previous files are back, and it was not reloaded." >&2
+}
+trap restore_nginx EXIT
+
+install -m 644 "$STAGE/log-format.conf" /etc/nginx/conf.d/dpappregistry-log-format.conf
+install -m 644 "$STAGE/api.conf" "$snippets/dpappregistry-api.conf"
+install -m 644 "$STAGE/files.conf" "$snippets/dpappregistry-files.conf"
+
+# The dashboard's locations (nginx/dashboard.conf) and the 404s in their place
+# (nginx/dashboard-hidden.conf). The public site has the dashboard at /, or
+# beside the store page at /registry/; the admin site always at /.
+dashboard_base=/
+hidden_base=/
+if [ "$STORE" = on ]; then
+  hidden_base=/registry/
+  if [ "$ADMIN" = public ]; then
+    dashboard_base=/registry/
+  fi
+fi
+dashboard_root=$WEB_DIR/registry
+if [ "$dashboard_base" = /registry/ ]; then
+  dashboard_root=$WEB_DIR
+fi
+sed -e "s|{{BASE}}|$dashboard_base|g" -e "s|{{ROOT}}|$dashboard_root|g" "$STAGE/dashboard.conf" >"$snippets/dpappregistry-dashboard.conf"
+sed "s|{{BASE}}|$hidden_base|g" "$STAGE/dashboard-hidden.conf" >"$snippets/dpappregistry-dashboard-hidden.conf"
+chmod 644 "$snippets/dpappregistry-dashboard.conf" "$snippets/dpappregistry-dashboard-hidden.conf"
+
+# The public site needs its certificate; until deploy.sh gets one, the domain
+# is left to the server's default site, which answers the certificate check.
 if [ -f "$CERT" ]; then
-  site=store.conf
-  [ "$STORE" = off ] && site=registry.conf
-  sed "s/{{DOMAIN}}/$DOMAIN/g" "$STAGE/$site" >/etc/nginx/sites-available/dpappregistry
-  ln -sfn /etc/nginx/sites-available/dpappregistry /etc/nginx/sites-enabled/dpappregistry
+  page=store.conf
+  if [ "$STORE" = off ]; then
+    page=registry.conf
+  fi
+  dashboard=dpappregistry-dashboard.conf
+  if [ "$ADMIN" = tunnel ]; then
+    dashboard=dpappregistry-dashboard-hidden.conf
+  fi
+  sed -e "s/{{DOMAIN}}/$DOMAIN/g" -e "s/{{DASHBOARD}}/$dashboard/g" "$STAGE/$page" >"$site"
+  ln -sfn "$site" /etc/nginx/sites-enabled/dpappregistry
 else
   rm -f /etc/nginx/sites-enabled/dpappregistry
 fi
-rm -rf "$STAGE"
+
+# The admin site, for the SSH tunnel.
+if [ "$ADMIN" = tunnel ]; then
+  install -m 644 "$STAGE/admin.conf" "$admin_site"
+  ln -sfn "$admin_site" /etc/nginx/sites-enabled/dpappregistry-admin
+else
+  rm -f /etc/nginx/sites-enabled/dpappregistry-admin "$admin_site"
+fi
 
 nginx -t -q
+trap - EXIT
+rm -rf "$saved" "$STAGE"
 systemctl reload nginx
+
+# The admin site answers on the server's loopback, where the SSH tunnel ends.
+# nginx opens its port while it reloads, which takes a moment. Before deploy.sh
+# has built the dashboard (on a new server), any answer from nginx will do.
+if [ "$ADMIN" = tunnel ]; then
+  fail=(-f)
+  if [ ! -f "$WEB_DIR/registry/index.html" ]; then
+    fail=()
+  fi
+  for attempt in $(seq 10); do
+    if curl "${fail[@]}" -sS -o /dev/null http://127.0.0.1:3310/; then
+      break
+    fi
+    if [ "$attempt" = 10 ]; then
+      echo "The admin site doesn't answer at http://127.0.0.1:3310/." >&2
+      exit 1
+    fi
+    sleep 1
+  done
+fi

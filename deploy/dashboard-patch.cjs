@@ -3,6 +3,9 @@
 //
 // - it can run under a sub-path (vite --base=/registry/ beside the store page):
 //   its routes, its sign-out redirect and its sidebar logo use the base instead of "/";
+// - the CI upload command it generates names VITE_PUBLIC_API_URL: reached through
+//   the SSH tunnel, the dashboard calls the API at a relative /api (VITE_API_URL),
+//   which a CI job elsewhere couldn't use;
 // - the tab shows this project's name;
 // - an upload shows its progress (bytes sent, speed, time left) and can be
 //   cancelled while the files are still going up;
@@ -81,6 +84,11 @@ const edits = [
   ['src/route/router.tsx', /\]\);\s*$/, "], { basename: import.meta.env.BASE_URL.replace(/\\/$/, '') || '/' });\n"],
   ['src/config/axios.ts', "window.location.href = '/signin';", "window.location.href = import.meta.env.BASE_URL + 'signin';"],
   ['src/components/layout/Sidebar.tsx', /src="\/banner-small\.png"/g, "src={import.meta.env.BASE_URL + 'banner-small.png'}"],
+  [
+    'src/components/modals/CiUploadCommandModal.tsx',
+    "apiURL: env.API_URL || '',",
+    "apiURL: import.meta.env.VITE_PUBLIC_API_URL || env.API_URL || '',",
+  ],
   ['index.html', '<title>FaynoSync</title>', '<title>DPAppRegistry</title>'],
 
   // The upload request reports progress and can be aborted.

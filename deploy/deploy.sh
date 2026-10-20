@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Deploys DPAppRegistry to one domain on a server:
 #
-#   https://<domain>/            the dashboard, for admins
 #   https://<domain>/api/        the API: update checks, uploads
 #   https://<domain>/files/      the builds
+#   http://localhost:3310        the dashboard, for admins, through an SSH tunnel
+#                                to the server's 127.0.0.1:3310 (ADMIN=tunnel)
 #
-# With STORE=on, the store page takes https://<domain>/ and the dashboard moves
-# to https://<domain>/registry/.
+# With ADMIN=tunnel, the default, the public site answers 404 at / and to
+# signing in and up; apps and CI, which never sign in, are unaffected. With
+# ADMIN=public, the dashboard is at https://<domain>/ again. With STORE=on, the
+# store page takes https://<domain>/, and an ADMIN=public dashboard moves to
+# https://<domain>/registry/.
 #
 #   deploy/deploy.sh                  set up the server if needed, then build and start everything
 #   deploy/deploy.sh web              nginx, the certificate and the pages, without rebuilding the API
@@ -21,7 +25,8 @@
 #                                     revoke, pubkey (the public key DPFileSystem is built with)
 #   deploy/deploy.sh order …          the store's orders: list, show, fulfil, reconcile
 #
-# DEPLOY_HOST, DEPLOY_USER, DEPLOY_KEY and DOMAIN change where it goes, and STORE what it serves.
+# DEPLOY_HOST, DEPLOY_USER, DEPLOY_KEY and DOMAIN change where it goes, and STORE
+# and ADMIN what it serves.
 
 set -euo pipefail
 
@@ -32,7 +37,13 @@ DOMAIN="${DOMAIN:-registry.mitekbro.com}"
 # on: the store page at /, the dashboard at /registry/. off: the dashboard at /.
 STORE="${STORE:-off}"
 case "$STORE" in on | off) ;; *) echo "STORE is on or off, not $STORE." >&2; exit 1 ;; esac
-DASHBOARD_IMAGE=registry.hub.docker.com/ku9nov/faynosync-dashboard:latest
+# tunnel: the dashboard only on the server's loopback (nginx/admin.conf), for
+# an SSH tunnel. public: the dashboard on the domain.
+ADMIN="${ADMIN:-tunnel}"
+case "$ADMIN" in tunnel | public) ;; *) echo "ADMIN is tunnel or public, not $ADMIN." >&2; exit 1 ;; esac
+# The upstream dashboard, pinned, since dashboard-patch.cjs edits its code: its
+# :latest built on 2026-09-24. A newer one needs the patch checked against it.
+DASHBOARD_IMAGE=registry.hub.docker.com/ku9nov/faynosync-dashboard@sha256:0bb14d158782769c3335aaa8ad1bcab805feb8e7dfb93d1ac09d3a2f87b636c0
 APP_DIR=/opt/dpappregistry
 WEB_DIR=/var/www/dpappregistry
 
@@ -44,7 +55,7 @@ remote() { ssh "${SSH_OPTS[@]}" "$LOGIN" "$@"; }
 setup() {
   remote 'rm -rf /tmp/dpappregistry-setup && mkdir -p /tmp/dpappregistry-setup'
   scp -q "${SSH_OPTS[@]}" "$ROOT"/deploy/nginx/*.conf "$ROOT/deploy/compose.yaml" "$ROOT/deploy/backup.sh" "$LOGIN:/tmp/dpappregistry-setup/"
-  remote "bash -s -- '$DOMAIN' '$STORE'" <"$ROOT/deploy/server-setup.sh"
+  remote "bash -s -- '$DOMAIN' '$STORE' '$ADMIN'" <"$ROOT/deploy/server-setup.sh"
 }
 
 # HTTPS for the domain, once it points only at this server.
@@ -87,26 +98,38 @@ store_page() {
 }
 
 # The upstream dashboard, built for this API: beside the store page, under
-# /registry/, or at the root without one.
+# /registry/, or at the root without one. Through the SSH tunnel it is at the
+# admin site's root and calls the API beside it, at /api; the CI upload command
+# it shows still names the public API (VITE_PUBLIC_API_URL).
 pages() {
-  local base=/
+  local base=/ api=https://$DOMAIN/api
   if [ "$STORE" = on ]; then
     store_page
     base=/registry/
   fi
+  if [ "$ADMIN" = tunnel ]; then
+    base=/
+    api=/api
+  fi
   rsync -rlt --delete -e "ssh ${SSH_OPTS[*]}" "$ROOT/deploy/dashboard-patch.cjs" "$ROOT/deploy/dashboard" "$LOGIN:$APP_DIR/dashboard-patch/"
   remote "rm -f $APP_DIR/dashboard-patch.cjs && docker pull -q $DASHBOARD_IMAGE >/dev/null && docker run --rm \
-    -e VITE_API_URL=https://$DOMAIN/api \
+    -e VITE_API_URL=$api -e VITE_PUBLIC_API_URL=https://$DOMAIN/api \
     -v $APP_DIR/dashboard-patch:/patch:ro -v $WEB_DIR/registry:/out \
     --entrypoint sh $DASHBOARD_IMAGE -c 'node /patch/dashboard-patch.cjs && npx vite build --base=$base --outDir /tmp/dist --logLevel error \
       && cp LICENSE /tmp/dist/LICENSE.txt && rm -rf /out/* && cp -r /tmp/dist/. /out/'"
 }
 
 urls() {
+  local dashboard=https://$DOMAIN/
+  if [ "$ADMIN" = tunnel ]; then
+    dashboard="http://localhost:3310 (through the SSH tunnel)"
+  elif [ "$STORE" = on ]; then
+    dashboard=https://$DOMAIN/registry/
+  fi
   if [ "$STORE" = on ]; then
-    echo "Store: https://$DOMAIN/  Dashboard: https://$DOMAIN/registry/"
+    echo "Store: https://$DOMAIN/  Dashboard: $dashboard"
   else
-    echo "Dashboard: https://$DOMAIN/"
+    echo "Dashboard: $dashboard"
   fi
 }
 
