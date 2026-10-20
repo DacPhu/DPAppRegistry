@@ -22,7 +22,7 @@ STAGE=/tmp/dpappregistry-setup
 CERT=/etc/letsencrypt/live/$DOMAIN/fullchain.pem
 
 missing=()
-for pkg in docker.io docker-compose-v2 docker-buildx nginx certbot rsync curl logrotate iproute2; do
+for pkg in docker.io docker-compose-v2 docker-buildx nginx certbot rsync curl logrotate iproute2 procps; do
   dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
 done
 if [ ${#missing[@]} -gt 0 ]; then
@@ -33,13 +33,18 @@ if [ ${#missing[@]} -gt 0 ]; then
 fi
 systemctl enable --now docker >/dev/null 2>&1
 
-# The admin site's port must be free or nginx's, checked before anything is
-# changed: nginx -t doesn't try to bind it, and a reload that can't bind it
-# reports success while nginx goes on with its old configuration.
+# The server's nginx: the master process systemd started (0 when it isn't
+# running). A reload keeps it and starts new workers.
+nginx_master() { systemctl show -p MainPID --value nginx 2>/dev/null || echo 0; }
+
+# The admin site's port must be free or the server's nginx's, checked before
+# anything is changed: nginx -t doesn't try to bind it, and a reload that can't
+# bind it reports success while nginx goes on with its old configuration. Any
+# other process holding it, another nginx included, is refused.
 if [ "$ADMIN" = tunnel ]; then
-  others=$(ss -Hltnp 'sport = :3310' | grep -v '"nginx"' || true)
+  others=$(ss -Hltnp 'sport = :3310' | grep -v "pid=$(nginx_master)," || true)
   if [ -n "$others" ]; then
-    echo "Port 3310, which the admin site needs, is taken by something other than nginx; nothing was changed:" >&2
+    echo "Port 3310, which the admin site needs, is taken by something other than the server's nginx; nothing was changed:" >&2
     echo "$others" >&2
     exit 1
   fi
@@ -236,10 +241,11 @@ cat >/etc/logrotate.d/dpappregistry-nginx <<'EOF'
 EOF
 
 # nginx also serves the server's other sites (mitekbro.com). Every nginx file
-# changed below is copied first. If a step fails, nginx refuses the result, or
-# the admin site doesn't answer after the reload, the copies go back, and nginx
-# is reloaded with them if it had been already: a file left behind that nginx
-# can't run would only show at its next restart, and stop every site.
+# changed below is copied first. If a step fails, nginx refuses the result,
+# the reload doesn't take effect, or the admin site doesn't answer after it,
+# the copies go back, and nginx is reloaded with them if it had been already:
+# a file left behind that nginx can't run would only show at its next
+# restart, and stop every site.
 snippets=/etc/nginx/snippets
 site=/etc/nginx/sites-available/dpappregistry
 admin_site=/etc/nginx/sites-available/dpappregistry-admin
@@ -258,21 +264,35 @@ for file in "${nginx_files[@]}"; do
   fi
 done
 reloaded=
+# Every copy goes back next to its file under a name nginx doesn't read (a dot
+# file, never *.conf), then over the file in one rename: a file is never
+# missing, even when a copy fails. The rest go on all the same, the reload
+# too, and whatever couldn't go back is named, its copy kept.
 restore_nginx() {
-  local file
+  set +e
+  local file temp failed=() outcome="nginx's previous files are back"
   for file in "${nginx_files[@]}"; do
-    rm -f "$file"
     if [ -e "$saved$file" ] || [ -L "$saved$file" ]; then
-      cp -a "$saved$file" "$file"
+      temp="$(dirname "$file")/.$(basename "$file").restore"
+      if ! { cp -a "$saved$file" "$temp" && mv -f "$temp" "$file"; }; then
+        rm -f "$temp"
+        failed+=("$file")
+      fi
+    elif [ -e "$file" ] || [ -L "$file" ]; then
+      rm -f "$file" || failed+=("$file")
     fi
   done
-  rm -rf "$saved"
-  if [ -z "$reloaded" ]; then
-    echo "nginx's previous files are back, and it was not reloaded." >&2
-  elif nginx -t -q && systemctl reload nginx; then
-    echo "nginx's previous files are back, and it was reloaded with them." >&2
+  if [ ${#failed[@]} -eq 0 ]; then
+    rm -rf "$saved"
   else
-    echo "nginx's previous files are back, but reloading nginx with them failed (see above)." >&2
+    outcome="Some of nginx's previous files couldn't be put back (their copies are in $saved): ${failed[*]}"
+  fi
+  if [ -z "$reloaded" ]; then
+    echo "$outcome. nginx was not reloaded." >&2
+  elif nginx -t -q && systemctl reload nginx; then
+    echo "$outcome. nginx was reloaded." >&2
+  else
+    echo "$outcome. Reloading nginx failed (see above)." >&2
   fi
 }
 trap restore_nginx EXIT
@@ -326,14 +346,28 @@ else
 fi
 
 nginx -t -q
+master=$(nginx_master)
+workers=$(pgrep -P "$master" | sort || true)
 reloaded=1
 systemctl reload nginx
 
+# A reload nginx can't apply (a port it can't bind, say) reports success all
+# the same, and nginx goes on with its old configuration. One it applied
+# starts new workers under the same master, within moments.
+for attempt in $(seq 20); do
+  if [ -n "$(comm -13 <(echo "$workers") <(pgrep -P "$master" | sort))" ]; then
+    break
+  fi
+  if [ "$attempt" = 20 ]; then
+    echo "nginx didn't apply the new configuration: no new workers after the reload (see its error log)." >&2
+    exit 1
+  fi
+  sleep 0.5
+done
+
 # The admin site must answer on the server's loopback, where the SSH tunnel
-# ends, from nginx itself: a reload that can't bind the port goes on with the
-# old configuration all the same. nginx takes a moment to apply a reload.
-# Before deploy.sh has built the dashboard (on a new server), any answer from
-# nginx will do.
+# ends, from the server's nginx: another process could hold the port. Before
+# deploy.sh has built the dashboard (on a new server), any answer will do.
 if [ "$ADMIN" = tunnel ]; then
   fail=(-f)
   if [ ! -f "$WEB_DIR/registry/index.html" ]; then
@@ -341,11 +375,11 @@ if [ "$ADMIN" = tunnel ]; then
   fi
   for attempt in $(seq 10); do
     listeners=$(ss -Hltnp 'sport = :3310')
-    if [[ $listeners == *'"nginx"'* ]] && curl "${fail[@]}" -sS --max-time 5 -o /dev/null http://127.0.0.1:3310/; then
+    if [[ $listeners == *"pid=$master,"* ]] && curl "${fail[@]}" -sS --max-time 5 -o /dev/null http://127.0.0.1:3310/; then
       break
     fi
     if [ "$attempt" = 10 ]; then
-      echo "The admin site doesn't answer at http://127.0.0.1:3310/ from nginx." >&2
+      echo "The admin site doesn't answer at http://127.0.0.1:3310/ from the server's nginx." >&2
       exit 1
     fi
     sleep 1
