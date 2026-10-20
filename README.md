@@ -105,23 +105,65 @@ GET /store/apps?channel=stable&owner=admin
 
 | Path | What |
 |---|---|
-| `/` | the dashboard, for admins |
 | `/api/` | the API: update checks and uploads |
 | `/files/` | public builds |
+| `http://localhost:3310` | the dashboard, for admins, through an SSH tunnel to the server (see [Operations](#operations)) |
 
-With `STORE=on`, the store page for users takes `/` and the dashboard moves to `/registry/`.
+With `ADMIN=public`, the dashboard is at `/` instead; with `STORE=on` as well, the store page for users takes `/` and the dashboard moves to `/registry/`.
 
 ```bash
 DOMAIN=registry.example.com DEPLOY_HOST=203.0.113.10 deploy/deploy.sh
 ```
 
-The domain has to point at the server first: the script gets its HTTPS certificate from Let's Encrypt. It installs Docker, starts the API, MongoDB, Redis and Garage with [`deploy/compose.yaml`](deploy/compose.yaml) (none of them reachable from outside), runs the migrations, and builds the dashboard for this API, at `/` or, with `STORE=on`, under `/registry/`. Secrets are made on the server on the first run, in `/opt/dpappregistry/.env`, and kept. Run the same command again to deploy a new version.
+The domain has to point at the server first: the script gets its HTTPS certificate from Let's Encrypt. It installs Docker, starts the API, MongoDB, Redis and Garage with [`deploy/compose.yaml`](deploy/compose.yaml) (none of them reachable from outside), runs the migrations, and builds the dashboard for this API: for the tunnel, or with `ADMIN=public` at `/` (under `/registry/` with `STORE=on`). Secrets are made on the server on the first run, in `/opt/dpappregistry/.env`, and kept. Run the same command again to deploy a new version.
 
 `deploy/deploy.sh web` applies nginx, the certificate and the pages without rebuilding the API. With `STORE=on`, `deploy/deploy.sh store` publishes only the store page, `store/` with [`deploy/store-config.js`](deploy/store-config.js) as its `config.js`, in a few seconds. The containers, migrations, nginx, the certificate and the dashboard stay as they are, so it is the way to ship a change to the page or its texts.
 
 The first admin signs up in the dashboard with the server's `API_KEY`. Apps they create appear in the store once a release is published.
 
 Every night at 03:15 the server backs up MongoDB to `/var/backups/dpappregistry/` (the newest 14 are kept) and mirrors the stored files; [`deploy/backup.sh`](deploy/backup.sh) has the details. `deploy/deploy.sh backup` backs up now, and `deploy/deploy.sh restore-test` restores the newest backup into a scratch MongoDB and compares it with the live one.
+
+## Operations
+
+### The dashboard, through an SSH tunnel
+
+By default (`ADMIN=tunnel`) the public site answers 404 at `/` and to signing in and signing up (`/api/login`, `/api/signup`). The rest of `/api/` stays public: apps check for updates and CI uploads with its `fns_` tokens, and neither signs in. The dashboard has a site of its own, [`deploy/nginx/admin.conf`](deploy/nginx/admin.conf), on the server's `127.0.0.1:3310`, with the API beside it, so it signs in from its own origin. Forward a port to it, then open http://localhost:3310:
+
+```bash
+ssh -N -L 127.0.0.1:3310:127.0.0.1:3310 root@<server>
+```
+
+The dashboard's CI upload command still names the public API. A sign-in made before the switch lasts until its token expires, within 24 hours. To put the dashboard back on the domain:
+
+```bash
+ADMIN=public deploy/deploy.sh web
+```
+
+### Metrics
+
+With `METRICS_ADDR` set (`:9326` on the server), the API serves Prometheus metrics at `/metrics` on a listener of its own, and only to clients inside `METRICS_ALLOW` (comma-separated CIDRs; the loopback when unset). Any other address gets 403, whatever headers it sends. Besides Go's and the process's own (`go_*`, `process_*`):
+
+| Metric | Labels | Counts |
+|---|---|---|
+| `dpappregistry_http_requests_total` | `method`, `route`, `status` | requests answered, by route template (`/update/:owner/:app/...`), or `unmatched`; methods besides the standard ones are `other` |
+| `dpappregistry_http_request_duration_seconds` | `method`, `route` | how long they took (buckets up to 600 s, for uploads) |
+| `dpappregistry_update_checks_total` | `app` (`owner/app`), `channel`, `platform`, `arch`, `result` (`update`, `no_update`, `error`) | update checks (`/checkVersion` and Squirrel's `RELEASES`); a set the registry hasn't published a release for counts as `other` in all four |
+| `dpappregistry_license_activations_total` | `result` (`active`, `revoked`, `expired`, `not_found`, `invalid`, `rate_limited`, `error`) | license activations |
+
+Every series whose labels are known in advance (each route, each published app, each result) exists at 0 from the start, so `rate()` and `increase()` see the first event after a restart. On the server, compose publishes the port on the gateway of the infra repo's Docker network, where its Prometheus scrapes it, and the registry stays off that network. `server-setup.sh` looks the gateway up on every run (`METRICS_PUBLISH` in `/opt/dpappregistry/.env`): after `infra` is recreated, run `deploy/deploy.sh` again.
+
+### Logs
+
+The server writes one line per entry, to stderr and, with `LOG_DIR` set, to `$LOG_DIR/api-YYYYMMDD.log`, a file per UTC day, the newest 14 days kept:
+
+```
+2026-10-20T12:00:00Z INFO api Telemetry allow-list reloaded after creating app
+2026-10-20T12:00:01Z INFO http trace=1a41c953cecaa336396fdb0bdec3b99c method=GET route=/checkVersion path=/checkVersion status=200 ms=12 bytes=123 ip=203.0.113.9
+```
+
+The time is UTC, and the level DEBUG, INFO, WARNING, ERROR or CRITICAL. The `http` lines are the requests, without their query strings, which carry tokens; `/health` isn't logged. `trace` is the request's `X-Request-ID` when it looks like an id. A message's later lines are indented, so a client's text can't pass for an entry of its own. When `LOG_DIR` can't be written, the server logs to stderr only. `GIN_MODE=release` turns off gin's debug output. Migrations and the operator commands log as before.
+
+On the server, `LOG_DIR` is the `dpappregistry_app_logs` volume, and nginx writes the public site's requests to `/var/log/nginx/sites/dpappregistry.access.log`, one JSON object each and no query strings, rotated nightly with 3 kept. nginx sends the API its own `X-Request-ID` and logs it as `request_id`, so one id finds a request in both logs. The infra repo's Alloy ships both to Loki. The container's own output (`deploy/deploy.sh logs`) is kept to 5 files of 10 MB.
 
 ## Plans
 
@@ -183,6 +225,7 @@ The server reads environment variables, or a `.env` file in its working director
 | Redis (required) | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB` |
 | Storage | `STORAGE_DRIVER` (`aws`, `gcp`, `digitalocean`, or the deprecated `minio`), `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET_NAME`, `S3_BUCKET_NAME_PRIVATE`, `S3_ENDPOINT`, `S3_ENDPOINT_PRIVATE`, `S3_API_ENDPOINT` |
 | Optional features | `PERFORMANCE_MODE`, `ENABLE_TELEMETRY`, `TUF_ENABLED` with `ONLINE_KEY_DIR`, `REPORTS_ENABLED`, `SLACK_ENABLE` with the other `SLACK_*` variables |
+| Monitoring | `METRICS_ADDR`, `METRICS_ALLOW`, `LOG_DIR`, `GIN_MODE` (see [Operations](#operations)) |
 
 Set `TRUSTED_PROXIES` to your reverse proxies' addresses, or to `127.0.0.1` when the API is exposed directly. Left unset, any client can spoof its IP address past the login and sign-up rate limits.
 
