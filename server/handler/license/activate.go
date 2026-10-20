@@ -9,6 +9,7 @@ import (
 
 	"github.com/DacPhu/DPAppRegistry/sdk/go/licensekey"
 	"github.com/DacPhu/DPAppRegistry/server/license"
+	"github.com/DacPhu/DPAppRegistry/server/metrics"
 	"github.com/DacPhu/DPAppRegistry/server/model"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
 
@@ -37,6 +38,10 @@ type activateRequest struct {
 // it runs on. The registry records it and says how the license stands; the
 // key stays valid offline either way, so this only informs the app.
 func Activate(c *gin.Context, database *mongo.Database, rdb *redis.Client) {
+	// The license's status, once it is found; every answer is counted.
+	status := ""
+	defer func() { metrics.LicenseActivation(activationResult(c.Writer.Status(), status)) }()
+
 	if !utils.EnforceRateLimits(c, rdb, []utils.RateLimit{{Key: "license:rl:activate:ip:" + utils.ClientIPKey(c), Limit: activatePerIPPerHour, Window: time.Hour}}, time.Now()) {
 		return
 	}
@@ -94,7 +99,7 @@ func Activate(c *gin.Context, database *mongo.Database, rdb *redis.Client) {
 		return
 	}
 
-	status := "active"
+	status = "active"
 	switch {
 	case doc.RevokedAt != nil:
 		status = "revoked"
@@ -109,6 +114,23 @@ func Activate(c *gin.Context, database *mongo.Database, rdb *redis.Client) {
 		"expires_at":       doc.ExpiresAt,
 		"updates_until":    doc.UpdatesUntil,
 	})
+}
+
+// activationResult names an activation's answer for the metrics: the
+// license's status, or why there is none. not_found is an unknown license, or
+// a registry that issues none; error is a 500 or the rate limiter's 503.
+func activationResult(httpStatus int, licenseStatus string) string {
+	switch {
+	case httpStatus == http.StatusOK && licenseStatus != "":
+		return licenseStatus
+	case httpStatus == http.StatusBadRequest:
+		return "invalid"
+	case httpStatus == http.StatusNotFound:
+		return "not_found"
+	case httpStatus == http.StatusTooManyRequests:
+		return "rate_limited"
+	}
+	return "error"
 }
 
 func trim(s string) string {

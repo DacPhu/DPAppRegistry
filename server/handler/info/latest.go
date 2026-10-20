@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	db "github.com/DacPhu/DPAppRegistry/mongod"
+	"github.com/DacPhu/DPAppRegistry/server/metrics"
 	"github.com/DacPhu/DPAppRegistry/server/plans"
 	"github.com/DacPhu/DPAppRegistry/server/usage"
 	"github.com/DacPhu/DPAppRegistry/server/utils"
@@ -236,6 +237,7 @@ func FindLatestVersion(c *gin.Context, repository db.AppRepository, db *mongo.Da
 	var httpStatus int
 	validatedParams, err := utils.ValidateParamsLatest(c, db)
 	if err != nil {
+		countUpdateCheck(checkQuery(c), metrics.UpdateError)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -245,6 +247,7 @@ func FindLatestVersion(c *gin.Context, repository db.AppRepository, db *mongo.Da
 
 	access, allowed := authorizeReadRequest(ctx, c, repository, validatedParams, http.StatusBadRequest)
 	if !allowed {
+		countUpdateCheck(validatedParams, metrics.UpdateError)
 		return
 	}
 
@@ -298,6 +301,7 @@ func FindLatestVersion(c *gin.Context, repository db.AppRepository, db *mongo.Da
 	if err != nil {
 		logrus.Debugf("CheckResult: %+v", checkResult)
 		logrus.Error("Error in CheckLatestVersion: ", err)
+		countUpdateCheck(validatedParams, metrics.UpdateError)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -670,6 +674,12 @@ func installIDs(c *gin.Context, params map[string]interface{}) (string, string) 
 }
 
 func logStatsToRedis(ctx context.Context, rdb *redis.Client, params map[string]interface{}, hasUpdate bool, deviceID, estimatedID string) {
+	// Every check answered, cached or not, is counted for Prometheus too.
+	if hasUpdate {
+		countUpdateCheck(params, metrics.UpdateAvailable)
+	} else {
+		countUpdateCheck(params, metrics.NoUpdate)
+	}
 	owner, _ := params["owner"].(string)
 	appName, _ := params["app_name"].(string)
 	// Every check counts toward its account's monthly active installs, which plans are priced by.

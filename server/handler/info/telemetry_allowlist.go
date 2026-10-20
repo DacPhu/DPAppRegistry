@@ -175,6 +175,8 @@ func ReloadTelemetryAllowList(ctx context.Context, database *mongo.Database) err
 	}
 
 	telemetryAllowList.Store(next)
+	// Each published set's update-check series start at 0, those of a release just published too.
+	trackUpdateChecks(next)
 	logrus.Debugf(
 		"Telemetry allow-list swapped: owners=%d apps=%d channels=%d platforms=%d architectures=%d versions=%d tuples=%d",
 		next.OwnerCount,

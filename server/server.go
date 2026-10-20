@@ -6,6 +6,7 @@ import (
 	"github.com/DacPhu/DPAppRegistry/server/handler"
 	"github.com/DacPhu/DPAppRegistry/server/handler/order"
 	"github.com/DacPhu/DPAppRegistry/server/license"
+	"github.com/DacPhu/DPAppRegistry/server/metrics"
 	"github.com/DacPhu/DPAppRegistry/server/plans"
 	"github.com/DacPhu/DPAppRegistry/server/sepay"
 	"github.com/DacPhu/DPAppRegistry/server/tuf"
@@ -21,7 +22,7 @@ import (
 func StartServer(config *viper.Viper) {
 	mongoUrl := config.GetString("MONGODB_URL")
 
-	router := gin.Default()
+	router := gin.New()
 	if trustedProxies := config.GetString("TRUSTED_PROXIES"); trustedProxies != "" {
 		proxies := strings.Split(trustedProxies, ",")
 		for i := range proxies {
@@ -31,6 +32,8 @@ func StartServer(config *viper.Viper) {
 			logrus.Fatalf("Invalid TRUSTED_PROXIES: %v", err)
 		}
 	}
+	// The metrics come before Recovery, so they see the 500 it answers a panic with.
+	router.Use(gin.Logger(), metrics.Middleware(), gin.Recovery())
 
 	client, configDB := db.ConnectToDatabase(mongoUrl)
 
@@ -190,6 +193,11 @@ func StartServer(config *viper.Viper) {
 		// and runs after the authentication added above.
 		router.Use(plans.FeatureGate(plans.TUF))
 		tuf.SetupRoutes(router, authMiddleware, mongoDatabase, redisClient, db)
+	}
+
+	metrics.TrackRoutes(router.Routes())
+	if err := metrics.Serve(config.GetString("METRICS_ADDR"), config.GetString("METRICS_ALLOW")); err != nil {
+		logrus.Errorf("Not serving /metrics: %v", err)
 	}
 
 	// get the port from the configuration file

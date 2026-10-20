@@ -111,6 +111,7 @@ func TestLicenseLifecycleThroughTheAPI(t *testing.T) {
 	activateBody := func(cluster string) string {
 		return `{"key":"` + key + `","cluster_id":"` + cluster + `","version":"1.2.0","platform":"linux","arch":"amd64"}`
 	}
+	counted := activationCounts(t)
 	code, body = call(t, activate, http.MethodPost, "/store/licenses/activate", activateBody("cluster-a"), false)
 	require.Equal(t, http.StatusOK, code, string(body["error"]))
 	assert.Equal(t, `"active"`, string(body["status"]))
@@ -126,6 +127,8 @@ func TestLicenseLifecycleThroughTheAPI(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code)
 	code, _ = call(t, activate, http.MethodPost, "/store/licenses/activate", `{"key":"`+tampered+`","cluster_id":"x"}`, false)
 	assert.Equal(t, http.StatusBadRequest, code, "tampered key")
+	assert.Equal(t, counted["active"]+4, activationCounts(t)["active"])
+	assert.Equal(t, counted["invalid"]+1, activationCounts(t)["invalid"])
 
 	code, body = call(t, show, http.MethodGet, "/license/show?id="+created.ID.Hex(), "", true)
 	require.Equal(t, http.StatusOK, code)
@@ -143,6 +146,7 @@ func TestLicenseLifecycleThroughTheAPI(t *testing.T) {
 	code, body = call(t, activate, http.MethodPost, "/store/licenses/activate", activateBody("cluster-a"), false)
 	require.Equal(t, http.StatusOK, code)
 	assert.Equal(t, `"revoked"`, string(body["status"]))
+	assert.Equal(t, counted["revoked"]+1, activationCounts(t)["revoked"])
 	_, err := licensekey.Parse(key, license.PublicKey())
 	assert.NoError(t, err, "revocation is advisory: the key still verifies")
 
