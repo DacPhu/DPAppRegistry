@@ -5,6 +5,7 @@ import (
 	"flag"
 	"github.com/DacPhu/DPAppRegistry/mongod"
 	"github.com/DacPhu/DPAppRegistry/server"
+	"github.com/DacPhu/DPAppRegistry/server/logging"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -50,6 +51,9 @@ func main() {
 
 	args := flag.Args()
 	if len(args) == 0 {
+		// The server logs in the format the log shipper reads, also to a file a
+		// day in LOG_DIR when set. Migrations and operator commands keep the plain one.
+		logging.Setup(viper.GetString("LOG_DIR"))
 		server.StartServer(viper.GetViper())
 		return
 	}

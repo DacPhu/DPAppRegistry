@@ -6,6 +6,7 @@ import (
 	"github.com/DacPhu/DPAppRegistry/server/handler"
 	"github.com/DacPhu/DPAppRegistry/server/handler/order"
 	"github.com/DacPhu/DPAppRegistry/server/license"
+	"github.com/DacPhu/DPAppRegistry/server/logging"
 	"github.com/DacPhu/DPAppRegistry/server/metrics"
 	"github.com/DacPhu/DPAppRegistry/server/plans"
 	"github.com/DacPhu/DPAppRegistry/server/sepay"
@@ -22,6 +23,10 @@ import (
 func StartServer(config *viper.Viper) {
 	mongoUrl := config.GetString("MONGODB_URL")
 
+	// viper reads .env without putting it in the environment, where gin looks for GIN_MODE.
+	if mode := config.GetString("GIN_MODE"); mode != "" {
+		gin.SetMode(mode)
+	}
 	router := gin.New()
 	if trustedProxies := config.GetString("TRUSTED_PROXIES"); trustedProxies != "" {
 		proxies := strings.Split(trustedProxies, ",")
@@ -32,8 +37,10 @@ func StartServer(config *viper.Viper) {
 			logrus.Fatalf("Invalid TRUSTED_PROXIES: %v", err)
 		}
 	}
-	// The metrics come before Recovery, so they see the 500 it answers a panic with.
-	router.Use(gin.Logger(), metrics.Middleware(), gin.Recovery())
+	// gin's own access log would write query strings, which carry tokens; this
+	// one doesn't. The access log and the metrics come first so they see each
+	// final status, including the 500 Recovery answers a panic with.
+	router.Use(logging.AccessLog(), metrics.Middleware(), gin.Recovery())
 
 	client, configDB := db.ConnectToDatabase(mongoUrl)
 
