@@ -6,6 +6,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -31,7 +32,22 @@ func getContentType(fileName string) string {
 		return "application/json"
 	}
 
+	if imageType, ok := rasterImageTypes[path.Ext(fileName)]; ok {
+		return imageType
+	}
+
 	return ""
+}
+
+// rasterImageTypes are stored with their own type, so a browser shows an app's
+// logo instead of downloading it. SVG stays out on purpose: it can carry script,
+// and the buckets are served from the store's own origin.
+var rasterImageTypes = map[string]string{
+	".png":  "image/png",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".gif":  "image/gif",
+	".webp": "image/webp",
 }
 
 // getStorageClient creates and returns a storage client using the factory pattern

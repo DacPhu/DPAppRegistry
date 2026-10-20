@@ -142,9 +142,10 @@ if [ -z "$latest" ]; then
   exit 1
 fi
 name=dpappregistry-restore-test
-docker rm -f "$name" >/dev/null 2>&1 || true
+docker rm -fv "$name" >/dev/null 2>&1 || true
 docker run -d --rm --name "$name" mongo:7.0.12 >/dev/null
-trap 'docker rm -f dpappregistry-restore-test >/dev/null 2>&1' EXIT
+# -v: removing a --rm container by hand leaves its anonymous volumes behind.
+trap 'docker rm -fv dpappregistry-restore-test >/dev/null 2>&1' EXIT
 for attempt in $(seq 60); do
   docker exec "$name" mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' </dev/null 2>/dev/null | grep -q 1 && break
   sleep 1

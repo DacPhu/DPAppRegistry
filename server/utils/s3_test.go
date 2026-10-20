@@ -20,6 +20,13 @@ func TestGetContentType(t *testing.T) {
 		"MyApp-1.0.0.dmg":       "",
 		"MyApp-1.0.0.exe":       "",
 		"":                      "",
+		"myapp-logo.png":        "image/png",
+		"Logo.JPG":              "image/jpeg",
+		"logo.jpeg":             "image/jpeg",
+		"logo.gif":              "image/gif",
+		"logo.webp":             "image/webp",
+		"logo.svg":              "",
+		"logo.png.zip":          "",
 	}
 
 	for fileName, want := range cases {
